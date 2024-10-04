@@ -34,13 +34,14 @@ async def scrape_profile(username: str):
     xhr_data_list = []
 
     async def intercept_xhr(route, request):
-        if "api/post/item_list" in request.url:
+        if "api/post/item_list" in request.url or "api/user/detail" in request.url:
             response = await route.fetch()
             xhr_data_list.append({
                 "url": request.url,
                 "method": request.method,
-                "body": await response.text(),
-                "headers": dict(response.headers)
+                "headers": dict(request.headers),
+                "response_status": response.status,
+                "response_headers": dict(response.headers)
             })
         await route.continue_()
 
@@ -56,21 +57,10 @@ async def scrape_profile(username: str):
         url = f"https://www.tiktok.com/@{username}"
         log.info(f"Attempting to navigate to: {url}")
         
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                await page.goto(url, timeout=60000)
-                log.info(f"Successfully loaded page for username: {username}")
-                break
-            except PlaywrightTimeoutError:
-                if attempt < max_retries - 1:
-                    log.warning(f"Timeout occurred. Retrying... (Attempt {attempt + 1}/{max_retries})")
-                else:
-                    log.error(f"Max retries reached. Unable to load the page for username: {username}")
-                    await browser.close()
-                    return {"error": f"Unable to load the page for username: {username} after multiple attempts"}
-
         try:
+            await page.goto(url, timeout=60000)
+            log.info(f"Successfully loaded page for username: {username}")
+
             log.info("Starting scroll function")
             await page.evaluate(js_scroll_function)
             log.info(f"Finished scrolling for username: {username}")
@@ -78,13 +68,12 @@ async def scrape_profile(username: str):
             log.info("Waiting for additional XHR requests")
             await page.wait_for_timeout(10000)
             
+        except PlaywrightTimeoutError:
+            log.error(f"Timeout occurred while loading the page for username: {username}")
         except Exception as e:
-            log.error(f"Error during scrolling for username {username}: {str(e)}")
-
-        page_content = await page.content()
-        log.debug(f"Final page content sample: {page_content[:1000]}...")
-
-        await browser.close()
+            log.error(f"Error during page load or scrolling for username {username}: {str(e)}")
+        finally:
+            await browser.close()
 
     if xhr_data_list:
         log.info(f"Captured {len(xhr_data_list)} XHR requests for username: {username}")
