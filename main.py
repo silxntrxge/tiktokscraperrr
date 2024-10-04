@@ -5,6 +5,12 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from loguru import logger as log
 from playwright.async_api import async_playwright, Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from bs4 import BeautifulSoup
+import time
+import undetected_chromedriver as uc
 
 # Set up standard logging
 def setup_logger():
@@ -120,7 +126,39 @@ def parse_json_response(response_text):
         log.debug(f"Response content: {response_text[:1000]}...")
         return None
 
-async def scrape_profile(username: str):
+def validate_data_structure(data):
+    if not isinstance(data, dict):
+        logger.error("Data is not a dictionary.")
+        log.error("Data is not a dictionary.")
+        return False
+    if "itemList" in data:
+        required_keys = ["itemList", "hasMore", "cursor"]
+    elif "userInfo" in data:
+        required_keys = ["userInfo", "stats"]
+    else:
+        logger.error("Data does not contain 'itemList' or 'userInfo'")
+        log.error("Data does not contain 'itemList' or 'userInfo'")
+        return False
+    for key in required_keys:
+        if key not in data:
+            logger.error(f"Missing key in data: {key}")
+            log.error(f"Missing key in data: {key}")
+            return False
+    return True
+
+def get_item_list(response_text):
+    data = parse_json_response(response_text)
+    if data and validate_data_structure(data):
+        return data.get("itemList", [])
+    return []
+
+def get_user_info(response_text):
+    data = parse_json_response(response_text)
+    if data and validate_data_structure(data):
+        return data.get("userInfo", {})
+    return {}
+
+async def scrape_profile_playwright(username: str):
     xhr_data_list = []
 
     async def intercept_xhr(route, request):
@@ -135,18 +173,14 @@ async def scrape_profile(username: str):
                 "response_headers": dict(response.headers)
             }
             
-            json_data = parse_json_response(response_body)
-            if json_data:
-                if "api/post/item_list" in request.url:
-                    xhr_data["itemList"] = parse_channel(json_data)
-                    logger.info(f"Successfully retrieved itemList with {len(xhr_data['itemList'])} items")
-                    log.info(f"Successfully retrieved itemList with {len(xhr_data['itemList'])} items")
-                elif "api/user/detail" in request.url:
-                    xhr_data["userInfo"] = json_data.get("userInfo")
-                    logger.info("Successfully retrieved user details")
-                    log.info("Successfully retrieved user details")
-            else:
-                xhr_data["parse_error"] = "Failed to parse JSON or missing required fields"
+            if "api/post/item_list" in request.url:
+                xhr_data["itemList"] = get_item_list(response_body)
+                logger.info(f"Successfully retrieved itemList with {len(xhr_data['itemList'])} items")
+                log.info(f"Successfully retrieved itemList with {len(xhr_data['itemList'])} items")
+            elif "api/user/detail" in request.url:
+                xhr_data["userInfo"] = get_user_info(response_body)
+                logger.info("Successfully retrieved user details")
+                log.info("Successfully retrieved user details")
             
             xhr_data_list.append(xhr_data)
             logger.debug(f"Intercepted XHR: {xhr_data['url']}")
@@ -215,14 +249,111 @@ async def scrape_profile(username: str):
         log.error(f"No XHR data captured for username: {username}")
         return {"error": f"No XHR data captured for username: {username}"}
 
+def initialize_driver():
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
+    driver = webdriver.Chrome(options=chrome_options)
+    return driver
+
+def initialize_undetected_driver():
+    options = uc.ChromeOptions()
+    options.headless = True
+    driver = uc.Chrome(options=options)
+    return driver
+
+def scrape_profile_selenium(username):
+    driver = initialize_driver()
+    try:
+        driver.get(f"https://www.tiktok.com/@{username}")
+        time.sleep(5)  # Wait for the page to load completely
+        page_source = driver.page_source
+        return parse_profile_html(page_source)
+    except Exception as e:
+        logger.error(f"Error scraping profile with Selenium: {e}")
+        log.error(f"Error scraping profile with Selenium: {e}")
+        return None
+    finally:
+        driver.quit()
+
+def scrape_profile_undetected(username):
+    driver = initialize_undetected_driver()
+    try:
+        driver.get(f"https://www.tiktok.com/@{username}")
+        # Add necessary waits
+        driver.implicitly_wait(10)
+        page_source = driver.page_source
+        return parse_profile_html(page_source)
+    except Exception as e:
+        logger.error(f"Error scraping with undetected Chromedriver: {e}")
+        log.error(f"Error scraping with undetected Chromedriver: {e}")
+        return None
+    finally:
+        driver.quit()
+
+def parse_profile_html(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    profile_data = {}
+    
+    # Extract username
+    username_tag = soup.find('h1', {'data-e2e': 'user-title'})
+    if username_tag:
+        profile_data['username'] = username_tag.text.strip()
+    else:
+        logger.error("Username not found in the profile HTML.")
+        log.error("Username not found in the profile HTML.")
+    
+    # Extract follower count
+    follower_count = soup.find('strong', {'data-e2e': 'followers-count'})
+    if follower_count:
+        profile_data['follower_count'] = follower_count.text.strip()
+    else:
+        logger.error("Follower count not found in the profile HTML.")
+        log.error("Follower count not found in the profile HTML.")
+    
+    # Extract video list
+    video_items = soup.find_all('div', {'data-e2e': 'user-post-item'})
+    profile_data['videos'] = []
+    for item in video_items:
+        video_data = {}
+        video_link = item.find('a')
+        if video_link:
+            video_data['link'] = video_link.get('href')
+        video_desc = item.find('div', {'data-e2e': 'user-post-item-desc'})
+        if video_desc:
+            video_data['description'] = video_desc.text.strip()
+        profile_data['videos'].append(video_data)
+    
+    return profile_data
+
 @app.post("/scrape")
 async def scrape_tiktok(request: ScrapeRequest):
     logger.info(f"Received scrape request for username: {request.username}")
     log.info(f"Received scrape request for username: {request.username}")
-    data = await scrape_profile(request.username)
+    
+    # Try undetected_chromedriver first
+    undetected_data = scrape_profile_undetected(request.username)
+    if undetected_data:
+        logger.info(f"Successfully scraped data using undetected_chromedriver for username: {request.username}")
+        log.info(f"Successfully scraped data using undetected_chromedriver for username: {request.username}")
+        return undetected_data
+    
+    # Try Selenium if undetected_chromedriver fails
+    selenium_data = scrape_profile_selenium(request.username)
+    if selenium_data:
+        logger.info(f"Successfully scraped data using Selenium for username: {request.username}")
+        log.info(f"Successfully scraped data using Selenium for username: {request.username}")
+        return selenium_data
+    
+    # Fallback to Playwright if both undetected_chromedriver and Selenium fail
+    logger.warning(f"Undetected_chromedriver and Selenium scraping failed for username: {request.username}. Falling back to Playwright.")
+    log.warning(f"Undetected_chromedriver and Selenium scraping failed for username: {request.username}. Falling back to Playwright.")
+    playwright_data = await scrape_profile_playwright(request.username)
+    
     logger.info(f"Scraping completed for username: {request.username}")
     log.info(f"Scraping completed for username: {request.username}")
-    return data
+    return playwright_data
 
 @app.get("/")
 async def root():
