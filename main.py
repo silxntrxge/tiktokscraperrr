@@ -100,7 +100,7 @@ async def scrape_profile(username: str):
         ]
         if not any(ignore_msg in msg.text for ignore_msg in ignore_messages):
             log.debug(f"Browser console: {msg.text}")
-
+##
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
