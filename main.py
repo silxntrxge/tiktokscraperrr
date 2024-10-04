@@ -14,19 +14,20 @@ class ScrapeRequest(BaseModel):
     username: str
 
 js_scroll_function = """
-function scrollToEnd(i) {
-    if (window.innerHeight + window.scrollY >= document.body.scrollHeight) {
-        console.log("Reached the bottom.");
-        return;
+async function scrollToEnd() {
+    let lastHeight = document.body.scrollHeight;
+    for (let i = 0; i < 15; i++) {
+        window.scrollTo(0, document.body.scrollHeight);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        if (document.body.scrollHeight === lastHeight) {
+            console.log("Reached the bottom or no more content to load.");
+            break;
+        }
+        lastHeight = document.body.scrollHeight;
     }
-    window.scrollTo(0, document.body.scrollHeight);
-    if (i < 15) {
-        setTimeout(() => scrollToEnd(i + 1), 3000);
-    } else {
-        console.log("Reached the end of iterations.");
-    }
+    console.log("Finished scrolling.");
 }
-scrollToEnd(0);
+await scrollToEnd();
 """
 
 async def scrape_profile(username: str):
@@ -35,14 +36,20 @@ async def scrape_profile(username: str):
     async def intercept_xhr(route, request):
         if "api/post/item_list" in request.url:
             response = await route.fetch()
-            body = await response.text()
-            xhr_data_list.append(body)
+            xhr_data_list.append({
+                "url": request.url,
+                "method": request.method,
+                "body": await response.text(),
+                "headers": dict(response.headers)
+            })
         await route.continue_()
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
         page = await context.new_page()
+
+        page.on("console", lambda msg: log.debug(f"Browser console: {msg.text}"))
 
         await page.route("**/*", intercept_xhr)
 
@@ -52,7 +59,7 @@ async def scrape_profile(username: str):
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                await page.goto(url, timeout=60000)  # Increase timeout to 60 seconds
+                await page.goto(url, timeout=60000)
                 log.info(f"Successfully loaded page for username: {username}")
                 break
             except PlaywrightTimeoutError:
@@ -64,24 +71,24 @@ async def scrape_profile(username: str):
                     return {"error": f"Unable to load the page for username: {username} after multiple attempts"}
 
         try:
+            log.info("Starting scroll function")
             await page.evaluate(js_scroll_function)
-            await page.wait_for_timeout(45000)  # Wait for 45 seconds to allow scrolling and XHR calls
+            log.info(f"Finished scrolling for username: {username}")
+            
+            log.info("Waiting for additional XHR requests")
+            await page.wait_for_timeout(10000)
+            
         except Exception as e:
             log.error(f"Error during scrolling for username {username}: {str(e)}")
+
+        page_content = await page.content()
+        log.debug(f"Final page content sample: {page_content[:1000]}...")
 
         await browser.close()
 
     if xhr_data_list:
-        try:
-            parsed_data = []
-            for xhr_data in xhr_data_list:
-                json_data = json.loads(xhr_data)
-                parsed_data.extend(parse_channel(json_data))
-            log.info(f"Successfully parsed data for username: {username}")
-            return parsed_data
-        except json.JSONDecodeError:
-            log.error(f"Failed to parse XHR data as JSON for username: {username}")
-            return {"error": f"Failed to parse XHR data for username: {username}"}
+        log.info(f"Captured {len(xhr_data_list)} XHR requests for username: {username}")
+        return {"xhr_data": xhr_data_list}
     else:
         log.error(f"No XHR data captured for username: {username}")
         return {"error": f"No XHR data captured for username: {username}"}
@@ -114,7 +121,7 @@ async def scrape_tiktok(request: ScrapeRequest):
     log.info(f"Received scrape request for username: {request.username}")
     data = await scrape_profile(request.username)
     log.info(f"Scraping completed for username: {request.username}")
-    return {"video_data": data}
+    return data
 
 @app.get("/")
 async def root():
