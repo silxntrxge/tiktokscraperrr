@@ -1,0 +1,1004 @@
+TikTok is one of the leading social media platforms, with an enormous traffic load. Imagine the amount of insights web scraping TikTok will allow for!
+
+In this article, we'll explain how to scrape TikTok. We'll extract data from various TikTok sources, such as posts, comments, profiles and search pages. Moreover, we'll scrape these data through hidden TikTok APIs or hidden JSON datasets. Let's get started!
+
+Latest TikTok Scraper Code
+Why Scrape TikTok?
+Setup
+How to Scrape TikTok Profiles?
+How To Scrape TikTok Channels?
+How To Scrape TikTok Posts?
+How To Scrape TikTok Comments?
+How To Scrape TikTok Search?
+Bypass TikTok Scraping Blocking With ScrapFly
+FAQ
+Web Scraping TikTok Summary
+JOIN THE NEWSLETTER
+Get monthly web scraping insights 👆
+
+Learn at ScrapFly Academy
+Latest TikTok Scraper Code
+https://github.com/scrapfly/scrapfly-scrapers/
+Legal Disclaimer and Precautions
+This tutorial covers popular web scraping techniques for education. Interacting with public servers requires diligence and respect and here's a good summary of what not to do:
+
+Do not scrape at rates that could damage the website.
+Do not scrape data that's not available publicly.
+Do not store PII of EU citizens who are protected by GDPR.
+Do not repurpose the entire public datasets which can be illegal in some countries.
+Scrapfly does not offer legal advice but these are good general rules to follow in web scraping
+and for more you should consult a lawyer.
+
+Why Scrape TikTok?
+The amount of social interaction on TikTok is vast, allowing for gathering various insights for different use cases:
+
+Analyzing trends
+Trends on TikTok are fast-changing, making it challenging to stay up to date with recent users' preferences. Scraping TikTok can capture these trend changes effectively along with their impact, which improves the marketing strategies to align with the users' interests.
+
+Lead generation
+Scraping TikTok allows businesses to identify marketing opportunities and new customers. This can be achieved by recognizing influencers with a relevant fan base that matches the business domain.
+
+Sentiment Analysis
+Web scraping TikTok is a good source for gathering text data found in comments, which can be researched by sentiment analysis models for gathering opinions on a given subject.
+Setup
+To web scrape TikTok, we'll use a few Python libraries:
+
+httpx: For sending HTTP requests to TikTok and getting the data in either HTML or JSON.
+parsel: For parsing the HTML and extracting elements using selectors, such as XPath and CSS.
+JMESPath: For parsing and refining the JSON datasets to exclude unnecessary details.
+loguru: For monitoring and logging our TikTok scraper in beautiful terminal outputs.
+scrapfly-sdk: For scraping TikTok pages that require JavaScript rendering and using advanced scraping features using ScrapFly.
+asyncio: For increasing our increasing our web scraping by running our code asynchronously.
+Note that asyncio comes pre-installed in Python. Use the following command to install the other packages:
+
+pip install httpx parsel jmespath loguru 
+How to Scrape TikTok Profiles?
+Let's start building the first parts of our TikTok scraper by scraping profile pages. Profile pages can include two types of data:
+
+Main profile data, such as the name, ID followers and likes count.
+Channel data, if the profile has any posts. It includes data about each video, such as the name, description and view statistics.
+Let's begin by scraping the profile data, which can be found under JavaScript script tags. To view this tag, follow the below steps:
+
+Go to any profile page on TikTok.
+Open the browser developer tools by pressing the F12 key.
+Look for the script tag that starts with the __UNIVERSAL_DATA ID.
+The identified tag contains a comprehensive JSON dataset about the web app, browser and localization details. However, the profile data can be found under the webapp.user-detail key:
+
+hidden json data on profile pages
+Hidden JSON data on profile pages
+The above data is commonly referred to as hidden web data. It's the same data on the page but before getting rendered into the HTML.
+
+How to Scrape Hidden Web Data
+Learn what hidden data is through some common examples. You will also learn how to scrape it using regular expressions and other clever parsing algorithms.
+
+How to Scrape Hidden Web Data
+So, to scrape the profile data, we'll request the TikTok profile page, select the script tag with the data and parse it:
+
+Python ScrapFly
+import asyncio
+import json
+from typing import List, Dict
+from httpx import AsyncClient, Response
+from parsel import Selector
+from loguru import logger as log
+
+# initialize an async httpx client
+client = AsyncClient(
+    # enable http2
+    http2=True,
+    # add basic browser like headers to prevent being blocked
+    headers={
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+    },
+)
+
+def parse_profile(response: Response):
+    """parse profile data from hidden scripts on the HTML"""
+    assert response.status_code == 200, "request is blocked, use the ScrapFly codetabs"
+    selector = Selector(response.text)
+    data = selector.xpath("//script[@id='__UNIVERSAL_DATA_FOR_REHYDRATION__']/text()").get()
+    profile_data = json.loads(data)["__DEFAULT_SCOPE__"]["webapp.user-detail"]["userInfo"]  
+    return profile_data
+
+
+async def scrape_profiles(urls: List[str]) -> List[Dict]:
+    """scrape tiktok profiles data from their URLs"""
+    to_scrape = [client.get(url) for url in urls]
+    data = []
+    # scrape the URLs concurrently
+    for response in asyncio.as_completed(to_scrape):
+        response = await response
+        profile_data = parse_profile(response)
+        data.append(profile_data)
+    log.success(f"scraped {len(data)} profiles from profile pages")
+    return data
+Run the code
+async def run():
+    profile_data = await scrape_profiles(
+        urls=[
+            "https://www.tiktok.com/@oddanimalspecimens"
+        ]
+    )
+    # save the result to a JSON file
+    with open("profile_data.json", "w", encoding="utf-8") as file:
+        json.dump(profile_data, file, indent=2, ensure_ascii=False)
+
+
+if __name__ == "__main__":
+    asyncio.run(run())
+Let's go through the above code:
+
+Create an async httpx with basic browser headers to avoid blocking.
+Define a parse_profiles function to select the script tag and parse the profile data.
+Define a scrape_profiles function to request the profile URLs concurrently while parsing the data from each page.
+Running the above TikTok scraper will create a JSON file named profile_data. Here is what it looks like:
+
+Output
+[
+  {
+    "user": {
+      "id": "6976999329680589829",
+      "shortId": "",
+      "uniqueId": "oddanimalspecimens",
+      "nickname": "Odd Animal Specimens",
+      "avatarLarger": "https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/7327535918275887147~c5_1080x1080.jpeg?lk3s=a5d48078&x-expires=1709280000&x-signature=1rRtT4jX0Tk5hK6cpSsDcqeU7cM%3D",
+      "avatarMedium": "https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/7327535918275887147~c5_720x720.jpeg?lk3s=a5d48078&x-expires=1709280000&x-signature=WXYAMT%2BIs9YV52R6jrg%2F1ccwdcE%3D",
+      "avatarThumb": "https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/7327535918275887147~c5_100x100.jpeg?lk3s=a5d48078&x-expires=1709280000&x-signature=rURTqWGfKNEiwl42nGtc8ufRIOw%3D",
+      "signature": "YOUTUBE: Odd Animal Specimens\nCONTACT: OddAnimalSpecimens@whalartalent.com",
+      "createTime": 0,
+      "verified": false,
+      "secUid": "MS4wLjABAAAAmiTQjtyN2Q_JQji6RgtgX2fKqOA-gcAAUU4SF9c7ktL3uPoWu0nLpBfqixgacB8u",
+      "ftc": false,
+      "relation": 0,
+      "openFavorite": false,
+      "bioLink": {
+        "link": "linktr.ee/oddanimalspecimens",
+        "risk": 0
+      },
+      "commentSetting": 0,
+      "commerceUserInfo": {
+        "commerceUser": false
+      },
+      "duetSetting": 0,
+      "stitchSetting": 0,
+      "privateAccount": false,
+      "secret": false,
+      "isADVirtual": false,
+      "roomId": "",
+      "uniqueIdModifyTime": 0,
+      "ttSeller": false,
+      "region": "US",
+      "profileTab": {
+        "showMusicTab": false,
+        "showQuestionTab": true,
+        "showPlayListTab": true
+      },
+      "followingVisibility": 1,
+      "recommendReason": "",
+      "nowInvitationCardUrl": "",
+      "nickNameModifyTime": 0,
+      "isEmbedBanned": false,
+      "canExpPlaylist": true,
+      "profileEmbedPermission": 1,
+      "language": "en",
+      "eventList": [],
+      "suggestAccountBind": false
+    },
+    "stats": {
+      "followerCount": 2600000,
+      "followingCount": 6,
+      "heart": 44600000,
+      "heartCount": 44600000,
+      "videoCount": 124,
+      "diggCount": 0,
+      "friendCount": 3
+    },
+    "itemList": []
+  }
+]
+We can successfully scrape TikTok for profile data. However, we are missing the profile's video data. Let's extract it!
+
+How To Scrape TikTok Channels?
+In this section, we'll scrape channel posts. The data we'll scrape are video data, which are only found in profiles with posts. Hence, this profile type is referred to as a channel.
+
+The channel video data are loaded dynamically through JavaScript, where scrolling loads more data.
+
+
+
+0:22
+/0:30
+
+1×
+
+
+The above background XHR calls are loaded while scrolling down the page. These calls were sent to the endpoint /api/post/item_list/, which returns the channel video data through batches.
+
+To scrape channel data, we can request the /post/item_list/ API endpoint directly. However, this endpoint requires many different parameters, which can be challenging to maintain. Therefore, we'll extract the data from the XHR calls.
+
+Web Scraping Background Requests with Headless Browsers and Python
+Learn how to scrape data from background XHR calls. We'll go over a step-by-step guide on launching a headless browser to save background requests, accessing and extracting the requests' data.
+
+Web Scraping Background Requests with Headless Browsers and Python
+TikTok allows non-logged-in users to view the profile pages. However, it restricts any actions unless you are logged in, meaning that we can't scroll down with the mouse actions. Therefore, we'll scroll down using JavaScript code that gets executed upon sending a request:
+
+function scrollToEnd(i) {
+    // check if already at the bottom and stop if there aren't more scrolls
+    if (window.innerHeight + window.scrollY >= document.body.scrollHeight) {
+        console.log("Reached the bottom.");
+        return;
+    }
+
+    // scroll down
+    window.scrollTo(0, document.body.scrollHeight);
+
+    // set a maximum of 15 iterations
+    if (i < 15) {
+        setTimeout(() => scrollToEnd(i + 1), 3000);
+    } else {
+        console.log("Reached the end of iterations.");
+    }
+}
+
+scrollToEnd(0);
+Here, we create a JavaScript function to scroll down and wait between each scroll iteration for the XHR requests to finish loading. It has a maximum of 15 scrolls, which is sufficient for most profiles.
+
+Let's use the above JavaScript code to scrape TikTok channel data from XHR calls:
+
+import jmespath
+import asyncio
+import json
+from typing import Dict, List
+from loguru import logger as log
+from scrapfly import ScrapeConfig, ScrapflyClient, ScrapeApiResponse
+
+SCRAPFLY = ScrapflyClient(key="Your ScrapFly APi key")
+
+js_scroll_function = """
+function scrollToEnd(i) {
+    // check if already at the bottom and stop if there aren't more scrolls
+    if (window.innerHeight + window.scrollY >= document.body.scrollHeight) {
+        console.log("Reached the bottom.");
+        return;
+    }
+
+    // scroll down
+    window.scrollTo(0, document.body.scrollHeight);
+
+    // set a maximum of 15 iterations
+    if (i < 15) {
+        setTimeout(() => scrollToEnd(i + 1), 3000);
+    } else {
+        console.log("Reached the end of iterations.");
+    }
+}
+
+scrollToEnd(0);
+"""
+
+def parse_channel(response: ScrapeApiResponse):
+    """parse channel video data from XHR calls"""
+    # extract the xhr calls and extract the ones for videos
+    _xhr_calls = response.scrape_result["browser_data"]["xhr_call"]
+    post_calls = [c for c in _xhr_calls if "/api/post/item_list/" in c["url"]]
+    post_data = []
+    for post_call in post_calls:
+        try:
+            data = json.loads(post_call["response"]["body"])["itemList"]
+        except Exception:
+            raise Exception("Post data couldn't load")
+        post_data.extend(data)
+    # parse all the data using jmespath
+    parsed_data = []
+    for post in post_data:
+        result = jmespath.search(
+            """{
+            createTime: createTime,
+            desc: desc,
+            id: id,
+            stats: stats,
+            contents: contents[].{desc: desc, textExtra: textExtra[].{hashtagName: hashtagName}},
+            video: video
+            }""",
+            post
+        )
+        parsed_data.append(result)    
+    return parsed_data
+
+
+async def scrape_channel(url: str) -> List[Dict]:
+    """scrape video data from a channel (profile with videos)"""
+    log.info(f"scraping channel page with the URL {url} for post data")
+    response = await SCRAPFLY.async_scrape(ScrapeConfig(
+        url, asp=True, country="GB", render_js=True, rendering_wait=2000, js=js_scroll_function
+    ))
+    data = parse_channel(response)
+    log.success(f"scraped {len(data)} posts data")
+    return data
+Run the code
+async def run():
+    channel_data = await scrape_channel(
+        url="https://www.tiktok.com/@oddanimalspecimens"
+    )
+    # save the result to a JSON file
+    with open("channel_data.json", "w", encoding="utf-8") as file:
+        json.dump(channel_data, file, indent=2, ensure_ascii=False)
+
+
+if __name__ == "__main__":
+    asyncio.run(run())
+Let's break down the execution flow of the above TikTok web scraping code:
+
+A request with a headless browser is sent to the profile page.
+The JavaScript scroll function gets executed.
+More channel video data are loaded through background XHR calls.
+The parse_channel function iterates over the responses of all the XHR calls and saves the video data into the post_data array.
+The channel data are refined using JMESPath to exclude the unnecessary details.
+We have extracted a small portion of each video data from the responses we got. However, the full response includes further details that might be useful. Here is a sample output for the results we got:
+
+Sample output
+[
+    {
+        "createTime": 1675963028,
+        "desc": "Mouse to Whale Vertebrae - What bone should I do next? How big is a mouse vertebra? How big is a whale vertebrae? A lot bigger, but all vertebrae share the same shape. Specimen use made possible by the University of Michigan Museum of Zoology. #animals #science #learnontiktok ",
+        "id": "7198206283571285294",
+        "stats": {
+            "collectCount": 92400,
+            "commentCount": 5464,
+            "diggCount": 1500000,
+            "playCount": 14000000,
+            "shareCount": 11800
+        },
+        "contents": [
+            {
+                "desc": "Mouse to Whale Vertebrae - What bone should I do next? How big is a mouse vertebra? How big is a whale vertebrae? A lot bigger, but all vertebrae share the same shape. Specimen use made possible by the University of Michigan Museum of Zoology. #animals #science #learnontiktok ",
+                "textExtra": [
+                    {
+                        "hashtagName": "animals"
+                    },
+                    {
+                        "hashtagName": "science"
+                    },
+                    {
+                        "hashtagName": "learnontiktok"
+                    }
+                ]
+            }
+        ],
+        "video": {
+            "bitrate": 441356,
+            "bitrateInfo": [
+                ....
+            ],
+            "codecType": "h264",
+            "cover": "https://p16-sign.tiktokcdn-us.com/obj/tos-useast5-p-0068-tx/3a2c21cd21ad4410b8ad7ab606aa0f45_1675963028?x-expires=1709287200&x-signature=Iv3PLyTi3PIWT4QUewp6MPnRU9c%3D",
+            "definition": "540p",
+            "downloadAddr": "https://v16-webapp-prime.tiktok.com/video/tos/maliva/tos-maliva-ve-0068c799-us/ed00b2ad6b9b4248ab0a4dd8494b9cfc/?a=1988&ch=0&cr=3&dr=0&lr=tiktok_m&cd=0%7C0%7C1%7C&cv=1&br=932&bt=466&bti=ODszNWYuMDE6&cs=0&ds=3&ft=4fUEKMvt8Zmo0K4Mi94jVhstrpWrKsd.&mime_type=video_mp4&qs=0&rc=ZTs1ZTw8aTZmZzU8ZGdpNkBpanFrZWk6ZmlsaTMzZzczNEBgLmJgYTQ0NjQxYDQuXi81YSNtMjZocjRvZ2ZgLS1kMS9zcw%3D%3D&btag=e00088000&expire=1709138858&l=20240228104720CEC3E63CBB78C407D3AE&ply_type=2&policy=2&signature=b86d518a02194c8bd389986d95b546a8&tk=tt_chain_token",
+            "duration": 16,
+            "dynamicCover": "https://p19-sign.tiktokcdn-us.com/obj/tos-useast5-p-0068-tx/348b414f005f4e49877e6c5ebe620832_1675963029?x-expires=1709287200&x-signature=xJyE12Y5TPj2IYQJF6zJ6%2FALwVw%3D",
+            "encodeUserTag": "",
+            "encodedType": "normal",
+            "format": "mp4",
+            "height": 1024,
+            "id": "7198206283571285294",
+            "originCover": "https://p16-sign.tiktokcdn-us.com/obj/tos-useast5-p-0068-tx/3f677464b38a4457959a7b329002defe_1675963028?x-expires=1709287200&x-signature=KX5gLesyY80rGeHg6ywZnKVOUnY%3D",
+            "playAddr": "https://v16-webapp-prime.tiktok.com/video/tos/maliva/tos-maliva-ve-0068c799-us/e9748ee135d04a7da145838ad43daa8e/?a=1988&ch=0&cr=3&dr=0&lr=unwatermarked&cd=0%7C0%7C0%7C&cv=1&br=862&bt=431&bti=ODszNWYuMDE6&cs=0&ds=6&ft=4fUEKMvt8Zmo0K4Mi94jVhstrpWrKsd.&mime_type=video_mp4&qs=0&rc=OzRlNzNnPDtlOTxpZjMzNkBpanFrZWk6ZmlsaTMzZzczNEAzYzI0MC1gNl8xMzUxXmE2YSNtMjZocjRvZ2ZgLS1kMS9zcw%3D%3D&btag=e00088000&expire=1709138858&l=20240228104720CEC3E63CBB78C407D3AE&ply_type=2&policy=2&signature=21ea870dc90edb60928080a6bdbfd23a&tk=tt_chain_token",
+            "ratio": "540p",
+            "subtitleInfos": [
+                ....
+            ],
+            "videoQuality": "normal",
+            "volumeInfo": {
+                "Loudness": -15.3,
+                "Peak": 0.79433
+            },
+            "width": 576,
+            "zoomCover": {
+                "240": "https://p16-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/3a2c21cd21ad4410b8ad7ab606aa0f45_1675963028~tplv-photomode-zoomcover:240:240.avif?x-expires=1709287200&x-signature=UV1mNc2EHUy6rf9eRQvkS%2FX%2BuL8%3D",
+                "480": "https://p16-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/3a2c21cd21ad4410b8ad7ab606aa0f45_1675963028~tplv-photomode-zoomcover:480:480.avif?x-expires=1709287200&x-signature=PT%2BCf4%2F4MC70e2VWHJC40TNv%2Fbc%3D",
+                "720": "https://p19-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/3a2c21cd21ad4410b8ad7ab606aa0f45_1675963028~tplv-photomode-zoomcover:720:720.avif?x-expires=1709287200&x-signature=3t7Dxca4pBoNYtzoYzui8ZWdALM%3D",
+                "960": "https://p16-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/3a2c21cd21ad4410b8ad7ab606aa0f45_1675963028~tplv-photomode-zoomcover:960:960.avif?x-expires=1709287200&x-signature=aKcJ0jxPTQx3YMV5lPLRlLMrkso%3D"
+            }
+        }
+    },
+    ....
+]
+The above code extracted over a hundred video data with a few lines of code in less than a minute. That's pretty powerful!
+
+How To Scrape TikTok Posts?
+Let's continue with our TikTok scraping project. In this section, we'll scrape video data, which represents TikTok posts. Similar to profile pages, post data can be found as hidden data under script tags.
+
+Go to any video on TikTok, inspect the page and search for the following selector, which we have used earlier:
+
+//script[@id='__UNIVERSAL_DATA_FOR_REHYDRATION__']/text()
+The post data in the above script tag looks like this:
+
+hidden data of tiktok posts
+Hidden data on TikTok posts
+Let's scrape TikTok posts by extracting and parsing the above data:
+
+Python ScrapFly
+import jmespath
+import asyncio
+import json
+from typing import List, Dict
+from httpx import AsyncClient, Response
+from parsel import Selector
+from loguru import logger as log
+
+# initialize an async httpx client
+client = AsyncClient(
+    # enable http2
+    http2=True,
+    # add basic browser like headers to prevent being blocked
+    headers={
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+    },
+)
+
+def parse_post(response: Response) -> Dict:
+    """parse hidden post data from HTML"""
+    assert response.status_code == 200, "request is blocked, use the ScrapFly codetabs"    
+    selector = Selector(response.text)
+    data = selector.xpath("//script[@id='__UNIVERSAL_DATA_FOR_REHYDRATION__']/text()").get()
+    post_data = json.loads(data)["__DEFAULT_SCOPE__"]["webapp.video-detail"]["itemInfo"]["itemStruct"]
+    parsed_post_data = jmespath.search(
+        """{
+        id: id,
+        desc: desc,
+        createTime: createTime,
+        video: video.{duration: duration, ratio: ratio, cover: cover, playAddr: playAddr, downloadAddr: downloadAddr, bitrate: bitrate},
+        author: author.{id: id, uniqueId: uniqueId, nickname: nickname, avatarLarger: avatarLarger, signature: signature, verified: verified},
+        stats: stats,
+        locationCreated: locationCreated,
+        diversificationLabels: diversificationLabels,
+        suggestedWords: suggestedWords,
+        contents: contents[].{textExtra: textExtra[].{hashtagName: hashtagName}}
+        }""",
+        post_data
+    )
+    return parsed_post_data
+
+
+async def scrape_posts(urls: List[str]) -> List[Dict]:
+    """scrape tiktok posts data from their URLs"""
+    to_scrape = [client.get(url) for url in urls]
+    data = []
+    for response in asyncio.as_completed(to_scrape):
+        response = await response
+        post_data = parse_post(response)
+        data.append(post_data)
+    log.success(f"scraped {len(data)} posts from post pages")
+    return data
+Run the code
+async def run():
+    post_data = await scrape_posts(
+        urls=[
+            "https://www.tiktok.com/@oddanimalspecimens/video/7198206283571285294"
+        ]
+    )
+    # save the result to a JSON file
+    with open("post_data.json", "w", encoding="utf-8") as file:
+        json.dump(post_data, file, indent=2, ensure_ascii=False)
+
+
+if __name__ == "__main__":
+    asyncio.run(run())
+In the above code, we define two functions. Let's break them down:
+
+parse_post: For parsing the post data from the script tag and refining it with JMESPath to extract the useful details only.
+scrape_posts: For scraping multiple post pages concurrently by adding the URLs to a scraping list and requesting them concurrently.
+Here is what the created post_data file should look like:
+
+Output
+[
+  {
+    "id": "7198206283571285294",
+    "desc": "Mouse to Whale Vertebrae - What bone should I do next? How big is a mouse vertebra? How big is a whale vertebrae? A lot bigger, but all vertebrae share the same shape. Specimen use made possible by the University of Michigan Museum of Zoology. #animals #science #learnontiktok ",
+    "createTime": "1675963028",
+    "video": {
+      "duration": 16,
+      "ratio": "540p",
+      "cover": "https://p16-sign.tiktokcdn-us.com/obj/tos-useast5-p-0068-tx/3a2c21cd21ad4410b8ad7ab606aa0f45_1675963028?x-expires=1709290800&x-signature=YP7J1o2kv1dLnyjv3hqwBBk487g%3D",
+      "playAddr": "https://v16-webapp-prime.tiktok.com/video/tos/maliva/tos-maliva-ve-0068c799-us/e9748ee135d04a7da145838ad43daa8e/?a=1988&ch=0&cr=3&dr=0&lr=unwatermarked&cd=0%7C0%7C0%7C&cv=1&br=862&bt=431&bti=ODszNWYuMDE6&cs=0&ds=6&ft=4fUEKMUj8Zmo0Qnqi94jVZgzZpWrKsd.&mime_type=video_mp4&qs=0&rc=OzRlNzNnPDtlOTxpZjMzNkBpanFrZWk6ZmlsaTMzZzczNEAzYzI0MC1gNl8xMzUxXmE2YSNtMjZocjRvZ2ZgLS1kMS9zcw%3D%3D&btag=e00088000&expire=1709142489&l=202402281147513D9DCF4EE8518C173598&ply_type=2&policy=2&signature=c0c4220f863ca89053ec2a71b180f226&tk=tt_chain_token",
+      "downloadAddr": "https://v16-webapp-prime.tiktok.com/video/tos/maliva/tos-maliva-ve-0068c799-us/ed00b2ad6b9b4248ab0a4dd8494b9cfc/?a=1988&ch=0&cr=3&dr=0&lr=tiktok_m&cd=0%7C0%7C1%7C&cv=1&br=932&bt=466&bti=ODszNWYuMDE6&cs=0&ds=3&ft=4fUEKMUj8Zmo0Qnqi94jVZgzZpWrKsd.&mime_type=video_mp4&qs=0&rc=ZTs1ZTw8aTZmZzU8ZGdpNkBpanFrZWk6ZmlsaTMzZzczNEBgLmJgYTQ0NjQxYDQuXi81YSNtMjZocjRvZ2ZgLS1kMS9zcw%3D%3D&btag=e00088000&expire=1709142489&l=202402281147513D9DCF4EE8518C173598&ply_type=2&policy=2&signature=779a4044a0768f870abed13e1401608f&tk=tt_chain_token",
+      "bitrate": 441356
+    },
+    "author": {
+      "id": "6976999329680589829",
+      "uniqueId": "oddanimalspecimens",
+      "nickname": "Odd Animal Specimens",
+      "avatarLarger": "https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/7327535918275887147~c5_1080x1080.jpeg?lk3s=a5d48078&x-expires=1709290800&x-signature=F8hu8G4VOFyd%2F0TN7QEZcGLNmW0%3D",
+      "signature": "YOUTUBE: Odd Animal Specimens\nCONTACT: OddAnimalSpecimens@whalartalent.com",
+      "verified": false
+    },
+    "stats": {
+      "diggCount": 1500000,
+      "shareCount": 11800,
+      "commentCount": 5471,
+      "playCount": 14000000,
+      "collectCount": "92420"
+    },
+    "locationCreated": "US",
+    "diversificationLabels": [
+      "Science",
+      "Education",
+      "Culture & Education & Technology"
+    ],
+    "suggestedWords": [],
+    "contents": [
+      {
+        "textExtra": [
+          {
+            "hashtagName": "animals"
+          },
+          {
+            "hashtagName": "science"
+          },
+          {
+            "hashtagName": "learnontiktok"
+          }
+        ]
+      }
+    ]
+  }
+]
+The above TikTok scraping code has successfully extracted the video data from its page. However, the comments are missing! Let's scrape it in the following section!
+
+How To Scrape TikTok Comments?
+The comment data on a post aren't found on hidden parts of the HTML. Instead, it's loaded dynamically through hidden APIs, which get activated through scroll actions.
+
+Since the comments on a post can exceed thousands, scraping them through scrolling isn't a practical approach. Therefore, we'll scrape them using the hidden comments API itself.
+
+How to Scrape Hidden APIs
+Learn how to find hidden APIs, how to scrape them, and what are some common challenges faced when developing web scrapers for hidden APIs.
+
+How to Scrape Hidden APIs
+To locate the comments hidden API, follow the below steps:
+
+Open the browser developer tools and select the network tab.
+Go to any video page on TikTok.
+Load more comments by scrolling down.
+After following the above steps, you will find the API calls used for loading more comments logged:
+
+API response on browser developer tools
+Hidden comments API
+The API request was sent to the endpoint https://www.tiktok.com/api/comment/list/ with many different API parameters. However, a few of them are required:
+
+{
+    "aweme_id": 7198206283571285294, # the post ID
+    "count": 20, # number of comments to retrieve in each API call
+    "cursor": 0 # the index to start retrieving from
+}
+We'll request the comments API endpoint to the comment data directly in JSON and use the cursor parameter to crawl over comment pages:
+
+Python ScrapFly
+import jmespath
+import asyncio
+import json
+from urllib.parse import urlencode
+from typing import List, Dict
+from httpx import AsyncClient, Response
+from loguru import logger as log
+
+# initialize an async httpx client
+client = AsyncClient(
+    # enable http2
+    http2=True,
+    # add basic browser like headers to prevent being blocked
+    headers={
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "content-type": "application/json"
+    },
+)
+
+def parse_comments(response: Response) -> List[Dict]:
+    """parse comments data from the API response"""
+    data = json.loads(response.text)
+    comments_data = data["comments"]
+    total_comments = data["total"]
+    parsed_comments = []
+    # refine the comments with JMESPath
+    for comment in comments_data:
+        result = jmespath.search(
+            """{
+            text: text,
+            comment_language: comment_language,
+            digg_count: digg_count,
+            reply_comment_total: reply_comment_total,
+            author_pin: author_pin,
+            create_time: create_time,
+            cid: cid,
+            nickname: user.nickname,
+            unique_id: user.unique_id,
+            aweme_id: aweme_id
+            }""",
+            comment
+        )
+        parsed_comments.append(result)
+    return {"comments": parsed_comments, "total_comments": total_comments}
+
+
+async def scrape_comments(post_id: int, comments_count: int = 20, max_comments: int = None) -> List[Dict]:
+    """scrape comments from tiktok posts using hidden APIs"""
+    
+    def form_api_url(cursor: int):
+        """form the reviews API URL and its pagination values"""
+        base_url = "https://www.tiktok.com/api/comment/list/?"
+        params = {
+            "aweme_id": post_id,
+            'count': comments_count,
+            'cursor': cursor # the index to start from      
+        }
+        return base_url + urlencode(params)
+    
+    log.info("scraping the first comments batch")
+    first_page = await client.get(form_api_url(0))
+    data = parse_comments(first_page)
+    comments_data = data["comments"]
+    total_comments = data["total_comments"]
+
+    # get the maximum number of comments to scrape
+    if max_comments and max_comments < total_comments:
+        total_comments = max_comments
+
+    # scrape the remaining comments concurrently
+    log.info(f"scraping comments pagination, remaining {total_comments // comments_count - 1} more pages")
+    _other_pages = [
+        client.get(form_api_url(cursor=cursor))
+        for cursor in range(comments_count, total_comments + comments_count, comments_count)
+    ]
+    for response in asyncio.as_completed(_other_pages):
+        response = await response
+        data = parse_comments(response)["comments"]
+        comments_data.extend(data)
+
+    log.success(f"scraped {len(comments_data)} from the comments API from the post with the ID {post_id}")
+    return comments_data
+Run the code
+async def run():
+    comment_data = await scrape_comments(
+        # the post/video id, such as: https://www.tiktok.com/@oddanimalspecimens/video/7198206283571285294
+        post_id=7198206283571285294,
+        # total comments to scrape, omitting it will scrape all the avilable comments
+        max_comments=100,
+        # default is 20, it can be overriden to scrape more comments in each call but it can't be > the total comments on the post
+        comments_count=20
+    )
+    # save the result to a JSON file
+    with open("comment_data.json", "w", encoding="utf-8") as file:
+        json.dump(comment_data, file, indent=2, ensure_ascii=False)
+
+
+if __name__ == "__main__":
+    asyncio.run(run())
+The above code scrapes TikTok comments data using two main functions:
+
+scrape_comments: To create the comments API URL with the desired offset and request it to get the comment data in JSON.
+parse_comments: This is used to parse the comments API responses and extract the useful data using JMESPath.
+Here is a sample output of the comment data we got:
+
+Sample output
+[
+  {
+    "text": "Dude give ‘em back",
+    "comment_language": "en",
+    "digg_count": 72009,
+    "reply_comment_total": 131,
+    "author_pin": false,
+    "create_time": 1675963633,
+    "cid": "7198208855277060910",
+    "nickname": "GrandMoffJames",
+    "unique_id": "grandmoffjames",
+    "aweme_id": "7198206283571285294"
+  },
+  {
+    "text": "Dudes got everyone’s back",
+    "comment_language": "en",
+    "digg_count": 36982,
+    "reply_comment_total": 100,
+    "author_pin": false,
+    "create_time": 1675966520,
+    "cid": "7198221275168719662",
+    "nickname": "Scott",
+    "unique_id": "troutfishmanjr",
+    "aweme_id": "7198206283571285294"
+  },
+  {
+    "text": "do human backbone",
+    "comment_language": "en",
+    "digg_count": 18286,
+    "reply_comment_total": 99,
+    "author_pin": false,
+    "create_time": 1676553505,
+    "cid": "7200742421726216987",
+    "nickname": "www",
+    "unique_id": "ksjekwjkdbw",
+    "aweme_id": "7198206283571285294"
+  },
+  {
+    "text": "casually has a backbone in his inventory",
+    "comment_language": "en",
+    "digg_count": 20627,
+    "reply_comment_total": 9,
+    "author_pin": false,
+    "create_time": 1676106562,
+    "cid": "7198822535374734126",
+    "nickname": "*",
+    "unique_id": "angelonextdoor",
+    "aweme_id": "7198206283571285294"
+  },
+  {
+    "text": "😧",
+    "comment_language": "",
+    "digg_count": 7274,
+    "reply_comment_total": 20,
+    "author_pin": false,
+    "create_time": 1675963217,
+    "cid": "7198207091995132698",
+    "nickname": "Son Bi’",
+    "unique_id": "son_bisss",
+    "aweme_id": "7198206283571285294"
+  },
+  ....
+]
+The above TikTok scraper code can scrape tens of comments in mere seconds. That's because utilizing the TikTok hidden APIs for web scraping is much faster than parsing data from HTML.
+
+How To Scrape TikTok Search?
+In this section, we'll proceed with the last piece of our TikTok web scraping code: search pages. The search data are loaded through a hidden API, which we'll utilize for web scraping. Alternatively, data on search pages can be scraped from background XHR calls, similar to how we scraped the channel data.
+
+To capture the search API, follow the below steps:
+
+Open the network tab of the browser developer tools.
+Use the search box to search for any keyword.
+Scroll down to load more search results.
+After following the above steps, you will find the search API requests logged:
+
+scrapfly middleware
+Hidden search API
+The above API request was sent to the following endpoint with these parameters:
+
+search_api_url = "https://www.tiktok.com/api/search/general/full/?"
+parameters = {
+    "keyword": "whales", # the keyword of the search query
+    "offset": cursor, # the index to start from
+    "search_id": "2024022710453229C796B3BF936930E248" # timestamp with random ID
+}
+The above parameters are essential for the search query. However, this endpoint requires certain cookie values to authorize the requests, which can be challenging to maintain. Therefore, we'll utilize the ScrapFly sessions feature to obtain a cookie and reuse it with the search API requests:
+
+import datetime
+import secrets
+import asyncio
+import json
+import jmespath
+from typing import Dict, List
+from urllib.parse import urlencode, quote
+from loguru import logger as log
+from scrapfly import ScrapeConfig, ScrapflyClient, ScrapeApiResponse
+
+SCRAPFLY = ScrapflyClient(key="Your Scrapfly API key key")
+
+def parse_search(response: ScrapeApiResponse) -> List[Dict]:
+    """parse search data from the API response"""
+    data = json.loads(response.scrape_result["content"])
+    search_data = data["data"]
+    parsed_search = []
+    for item in search_data:
+        if item["type"] == 1: # get the item if it was item only
+            result = jmespath.search(
+                """{
+                id: id,
+                desc: desc,
+                createTime: createTime,
+                video: video,
+                author: author,
+                stats: stats,
+                authorStats: authorStats
+                }""",
+                item["item"]
+            )
+            result["type"] = item["type"]
+            parsed_search.append(result)
+
+    # wheter there is more search results: 0 or 1. There is no max searches available
+    has_more = data["has_more"]
+    return parsed_search
+
+
+async def obtain_session(url: str) -> str:
+    """create a session to save the cookies and authorize the search API"""
+    session_id="tiktok_search_session"
+    await SCRAPFLY.async_scrape(ScrapeConfig(
+        url, asp=True, country="US", render_js=True, session=session_id
+    ))
+    return session_id
+
+
+async def scrape_search(keyword: str, max_search: int, search_count: int = 12) -> List[Dict]:
+    """scrape tiktok search data from the search API"""
+
+    def generate_search_id():
+        # get the current datetime and format it as YYYYMMDDHHMMSS
+        timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+        # calculate the length of the random hex required for the total length (32)
+        random_hex_length = (32 - len(timestamp)) // 2  # calculate bytes needed
+        random_hex = secrets.token_hex(random_hex_length).upper()
+        random_id = timestamp + random_hex
+        return random_id
+
+    def form_api_url(cursor: int):
+        """form the reviews API URL and its pagination values"""
+        base_url = "https://www.tiktok.com/api/search/general/full/?"
+        params = {
+            "keyword": quote(keyword),
+            "offset": cursor, # the index to start from
+            "search_id": generate_search_id()
+        }
+        return base_url + urlencode(params)
+
+    log.info("obtaining a session for the search API")
+    session_id = await obtain_session(url="https://www.tiktok.com/search?q=" + quote(keyword))
+
+    log.info("scraping the first search batch")
+    first_page = await SCRAPFLY.async_scrape(ScrapeConfig(
+        form_api_url(cursor=0), asp=True, country="US", session=session_id
+    ))
+    search_data = parse_search(first_page)
+
+    # scrape the remaining comments concurrently
+    log.info(f"scraping search pagination, remaining {max_search // search_count} more pages")
+    _other_pages = [
+        ScrapeConfig(form_api_url(cursor=cursor), asp=True, country="US", session=session_id
+    )
+        for cursor in range(search_count, max_search + search_count, search_count)
+    ]
+    async for response in SCRAPFLY.concurrent_scrape(_other_pages):
+        data = parse_search(response)
+        search_data.extend(data)
+
+    log.success(f"scraped {len(search_data)} from the search API from the keyword {keyword}")
+    return search_data
+Run the code
+async def run():
+    search_data = await scrape_search(
+        keyword="whales",
+        max_search=18
+    )
+    # save the result to a JSON file
+    with open("search_data.json", "w", encoding="utf-8") as file:
+        json.dump(search_data, file, indent=2, ensure_ascii=False)
+
+
+if __name__ == "__main__":
+    asyncio.run(run())
+Let's break down the execution flow of the above TikTok scraping code:
+
+A request is sent to the regular search page to obtain the cookie values through the obtain_session function.
+A random search ID is created using the generate_search_id to use it with the requests sent to the search API.
+The first search API URL is created with the form_api_url function.
+A request is sent to the search API with the session key containing the cookies.
+The JSON response of the search API is parsed using the parse_search. It also filters the response data to only include the video data.
+🙋‍ The above code requests the /search/general/full/ endpoint, which retrieves search results for both profile and video data. This endpoint is limited to a low cursor value. To effectiely manage its pagination, you can use filters to narrow down the results.
+
+Here is a sample output of results we got:
+
+Sample output
+[
+  {
+    "id": "7192262480066825515",
+    "desc": "Replying to @julsss1324 their songs are described as hauntingly beautiful. Do you find them scary or beautiful? For me it’s peaceful. They remind me of elephants. 🐋🎶💙 @kaimanaoceansafari #whalesounds #whalesong #hawaii #ocean #deepwater #deepsea #thalassophobia #whales #humpbackwhales ",
+    "createTime": 1674579130,
+    "video": {
+      "id": "7192262480066825515",
+      "height": 1024,
+      "width": 576,
+      "duration": 25,
+      "ratio": "540p",
+      "cover": "https://p16-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/e438558728954c74a761132383865d97_1674579131~tplv-dmt-logom:tos-useast5-i-0068-tx/0bb4cf51c9f445c9a46dc8d5aab20545.image?x-expires=1709215200&x-signature=Xl1W9ELtZ5%2FP4oTEpjqOYsGQcx8%3D",
+      "originCover": "https://p19-sign.tiktokcdn-us.com/obj/tos-useast5-p-0068-tx/2061429a4535477686769d5f2faeb4f0_1674579131?x-expires=1709215200&x-signature=OJW%2BJnqnYt4L2G2pCryrfh52URI%3D",
+      "dynamicCover": "https://p19-sign.tiktokcdn-us.com/obj/tos-useast5-p-0068-tx/88b455ffcbc6421999f47ebeb31b962b_1674579131?x-expires=1709215200&x-signature=hDBbwIe0Z8HRVFxLe%2F2JZoeHopU%3D",
+      "playAddr": "https://v16-webapp-prime.us.tiktok.com/video/tos/useast5/tos-useast5-pve-0068-tx/809fca40201048c78299afef3b627627/?a=1988&ch=0&cr=3&dr=0&lr=unwatermarked&cd=0%7C0%7C0%7C&cv=1&br=3412&bt=1706&bti=NDU3ZjAwOg%3D%3D&cs=0&ds=6&ft=4KJMyMzm8Zmo0apOi94jV94rdpWrKsd.&mime_type=video_mp4&qs=0&rc=NDU3PDc0PDw7ZGg7ODg0O0BpM2xycGk6ZnYzaTMzZzczNEBgNl4tLjFiNjMxNTVgYjReYSNucGwzcjQwajVgLS1kMS9zcw%3D%3D&btag=e00088000&expire=1709216449&l=202402271420230081AD419FAC9913AB63&ply_type=2&policy=2&signature=1d44696fa49eb5fa609f6b6871445f77&tk=tt_chain_token",
+      "downloadAddr": "https://v16-webapp-prime.us.tiktok.com/video/tos/useast5/tos-useast5-pve-0068-tx/c7196f98798e4520834a64666d253cb6/?a=1988&ch=0&cr=3&dr=0&lr=tiktok_m&cd=0%7C0%7C1%7C&cv=1&br=3514&bt=1757&bti=NDU3ZjAwOg%3D%3D&cs=0&ds=3&ft=4KJMyMzm8Zmo0apOi94jV94rdpWrKsd.&mime_type=video_mp4&qs=0&rc=ZTw5Njg0NDo3Njo7PGllOkBpM2xycGk6ZnYzaTMzZzczNEBhYjFiLjA1NmAxMS8uMDIuYSNucGwzcjQwajVgLS1kMS9zcw%3D%3D&btag=e00088000&expire=1709216449&l=202402271420230081AD419FAC9913AB63&ply_type=2&policy=2&signature=1443d976720e418204704f43af4ff0f5&tk=tt_chain_token",
+      "shareCover": [
+        "",
+        "https://p16-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/2061429a4535477686769d5f2faeb4f0_1674579131~tplv-photomode-tiktok-play.jpeg?x-expires=1709647200&x-signature=%2B4dufwEEFxPJU0NX4K4Mm%2FPET6E%3D",
+        "https://p16-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/2061429a4535477686769d5f2faeb4f0_1674579131~tplv-photomode-share-play.jpeg?x-expires=1709647200&x-signature=XCorhFJUTCahS8crANfC%2BDSrTbU%3D"
+      ],
+      "reflowCover": "https://p19-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/e438558728954c74a761132383865d97_1674579131~tplv-photomode-video-cover:480:480.jpeg?x-expires=1709215200&x-signature=%2BFN9Vq7TxNLLCtJCsMxZIrgjMis%3D",
+      "bitrate": 1747435,
+      "encodedType": "normal",
+      "format": "mp4",
+      "videoQuality": "normal",
+      "encodeUserTag": ""
+    },
+    "author": {
+      "id": "6763395919847523333",
+      "uniqueId": "mermaid.kayleigh",
+      "nickname": "mermaid.kayleigh",
+      "avatarThumb": "https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/7310953622576037894~c5_100x100.jpeg?lk3s=a5d48078&x-expires=1709215200&x-signature=0tw66iTdRDhPA4pTHM8e4gjIsNo%3D",
+      "avatarMedium": "https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/7310953622576037894~c5_720x720.jpeg?lk3s=a5d48078&x-expires=1709215200&x-signature=IkaoB24EJoHdsHCinXmaazAWDYo%3D",
+      "avatarLarger": "https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/7310953622576037894~c5_1080x1080.jpeg?lk3s=a5d48078&x-expires=1709215200&x-signature=38KCawETqF%2FdyMX%2FAZg32edHnc4%3D",
+      "signature": "Love the ocean with me 💙\nOwner @KaimanaOceanSafari 🤿\nCome dive with me👇🏼",
+      "verified": true,
+      "secUid": "MS4wLjABAAAAhIICwHiwEKwUg07akDeU_cnM0uE1LAGO-kEQdw3AZ_Rd-zcb-qOR0-1SeZ5D2Che",
+      "secret": false,
+      "ftc": false,
+      "relation": 0,
+      "openFavorite": false,
+      "commentSetting": 0,
+      "duetSetting": 0,
+      "stitchSetting": 0,
+      "privateAccount": false,
+      "downloadSetting": 0
+    },
+    "stats": {
+      "diggCount": 10000000,
+      "shareCount": 390800,
+      "commentCount": 72100,
+      "playCount": 89100000,
+      "collectCount": 663400
+    },
+    "authorStats": {
+      "followingCount": 313,
+      "followerCount": 2000000,
+      "heartCount": 105400000,
+      "videoCount": 1283,
+      "diggCount": 40800,
+      "heart": 105400000
+    },
+    "type": 1
+  },
+  ....
+]
+With this last feature, our TikTok scraper is complete. It can scrape profiles, channels, posts, comments and search data!
+
+Bypass TikTok Scraping Blocking With ScrapFly
+We can successfully scrape TikTok data from various pages. However, scaling our scraping rate will lead TikTok to block the IP address used. Moreover, it can challenge the requests with CAPTCHAs if the traffic is suspected:
+
+captcha on tiktok
+TikTok sraping blocking
+This is where Scrapfly can lend a hand and help resolve Tiktok scraper blocking.
+
+scrapfly middleware
+ScrapFly provides web scraping, screenshot, and extraction APIs for data collection at scale.
+
+Anti-bot protection bypass - scrape web pages without blocking!
+Rotating residential proxies - prevent IP address and geographic blocks.
+JavaScript rendering - scrape dynamic web pages through cloud browsers.
+Full browser automation - control browsers to scroll, input and click on objects.
+Format conversion - scrape as HTML, JSON, Text, or Markdown.
+Python and Typescript SDKs, as well as Scrapy and no-code tool integrations.
+For example, this is how we can avoid TikTok web scraping blocking using ScrapFly. All we have to do is replace the HTTP client with the ScrapFly client and enable the asp parameter:
+
+# standard web scraping code
+import httpx
+from parsel import Selector
+
+response = httpx.get("some tiktok.com URL")
+selector = Selector(response.text)
+
+# in ScrapFly becomes this 👇
+from scrapfly import ScrapeConfig, ScrapflyClient
+
+# replaces your HTTP client (httpx in this case)
+scrapfly = ScrapflyClient(key="Your ScrapFly API key")
+
+response = scrapfly.scrape(ScrapeConfig(
+    url="website URL",
+    asp=True, # enable the anti scraping protection to bypass blocking
+    country="US", # set the proxy location to a specfic country
+    render_js=True # enable rendering JavaScript (like headless browsers) to scrape dynamic content if needed
+))
+
+# use the built in Parsel selector
+selector = response.selector
+# access the HTML content
+html = response.scrape_result['content']
