@@ -56,6 +56,25 @@ def parse_channel(data):
     
     return parsed_data
 
+async def load_page_with_retry(page, url, max_attempts=3):
+    for attempt in range(max_attempts):
+        try:
+            await page.goto(url, timeout=30000)
+            return True
+        except Exception as e:
+            log.warning(f"Error loading page. Retrying... Attempt {attempt + 1}/{max_attempts}")
+            await asyncio.sleep(2)  # Add delay between retries
+    log.error("Failed to load page after multiple attempts")
+    return False
+
+def parse_json_response(response_text):
+    try:
+        return json.loads(response_text)
+    except json.JSONDecodeError as e:
+        log.error(f"Failed to parse JSON from response: {str(e)}")
+        log.debug(f"Response content: {response_text[:1000]}...")  # Log first 1000 characters
+        return None
+
 async def scrape_profile(username: str):
     xhr_data_list = []
 
@@ -71,18 +90,16 @@ async def scrape_profile(username: str):
                 "response_headers": dict(response.headers)
             }
             
-            try:
-                json_data = json.loads(response_body)
+            json_data = parse_json_response(response_body)
+            if json_data:
                 if "api/post/item_list" in request.url:
                     xhr_data["itemList"] = parse_channel(json_data)
                     log.info(f"Successfully retrieved itemList with {len(xhr_data['itemList'])} items")
                 elif "api/user/detail" in request.url:
                     xhr_data["userInfo"] = json_data.get("userInfo")
                     log.info("Successfully retrieved user details")
-            except json.JSONDecodeError:
-                log.error(f"Failed to parse JSON from response for {request.url}")
-            except Exception as e:
-                log.error(f"Error processing response for {request.url}: {str(e)}")
+            else:
+                xhr_data["parse_error"] = "Failed to parse JSON"
             
             xhr_data_list.append(xhr_data)
             log.debug(f"Intercepted XHR: {xhr_data['url']}")
@@ -100,7 +117,9 @@ async def scrape_profile(username: str):
         ]
         if not any(ignore_msg in msg.text for ignore_msg in ignore_messages):
             log.debug(f"Browser console: {msg.text}")
-##
+        if "error getItemList" in msg.text:
+            log.error(f"getItemList error detected: {msg.text}")
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
@@ -113,21 +132,8 @@ async def scrape_profile(username: str):
         url = f"https://www.tiktok.com/@{username}"
         log.info(f"Attempting to navigate to: {url}")
         
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                response = await asyncio.wait_for(page.goto(url), timeout=60.0)
-                if response.ok:
-                    log.info(f"Successfully loaded page for username: {username}")
-                    break
-                else:
-                    log.warning(f"Failed to load page. Status: {response.status}. Attempt {attempt + 1}/{max_retries}")
-            except (asyncio.TimeoutError, PlaywrightError) as e:
-                if attempt == max_retries - 1:
-                    log.error(f"Failed to load page after {max_retries} attempts: {str(e)}")
-                    return {"error": f"Failed to load page: {str(e)}"}
-                log.warning(f"Error loading page. Retrying... Attempt {attempt + 1}/{max_retries}")
-                await asyncio.sleep(5)  # Wait 5 seconds before retrying
+        if not await load_page_with_retry(page, url):
+            return {"error": "Failed to load page after multiple attempts"}
 
         try:
             log.info("Starting scroll function")
