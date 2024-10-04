@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from loguru import logger as log
 from playwright.async_api import async_playwright
+from playwright._impl._api_types import TimeoutError as PlaywrightTimeoutError
 
 log.add("app.log", rotation="500 MB")
 
@@ -46,9 +47,27 @@ async def scrape_profile(username: str):
         await page.route("**/*", intercept_xhr)
 
         url = f"https://www.tiktok.com/@{username}"
-        await page.goto(url)
-        await page.evaluate(js_scroll_function)
-        await page.wait_for_timeout(45000)  # Wait for 45 seconds to allow scrolling and XHR calls
+        log.info(f"Attempting to navigate to: {url}")
+        
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                await page.goto(url, timeout=60000)  # Increase timeout to 60 seconds
+                log.info(f"Successfully loaded page for username: {username}")
+                break
+            except PlaywrightTimeoutError:
+                if attempt < max_retries - 1:
+                    log.warning(f"Timeout occurred. Retrying... (Attempt {attempt + 1}/{max_retries})")
+                else:
+                    log.error(f"Max retries reached. Unable to load the page for username: {username}")
+                    await browser.close()
+                    return {"error": f"Unable to load the page for username: {username} after multiple attempts"}
+
+        try:
+            await page.evaluate(js_scroll_function)
+            await page.wait_for_timeout(45000)  # Wait for 45 seconds to allow scrolling and XHR calls
+        except Exception as e:
+            log.error(f"Error during scrolling for username {username}: {str(e)}")
 
         await browser.close()
 
@@ -58,13 +77,14 @@ async def scrape_profile(username: str):
             for xhr_data in xhr_data_list:
                 json_data = json.loads(xhr_data)
                 parsed_data.extend(parse_channel(json_data))
+            log.info(f"Successfully parsed data for username: {username}")
             return parsed_data
         except json.JSONDecodeError:
-            log.error("Failed to parse XHR data as JSON")
-            return {"error": "Failed to parse XHR data"}
+            log.error(f"Failed to parse XHR data as JSON for username: {username}")
+            return {"error": f"Failed to parse XHR data for username: {username}"}
     else:
-        log.error("No XHR data captured")
-        return {"error": "No XHR data captured"}
+        log.error(f"No XHR data captured for username: {username}")
+        return {"error": f"No XHR data captured for username: {username}"}
 
 def parse_channel(data):
     if "itemList" not in data:
@@ -91,7 +111,9 @@ def parse_channel(data):
 
 @app.post("/scrape")
 async def scrape_tiktok(request: ScrapeRequest):
+    log.info(f"Received scrape request for username: {request.username}")
     data = await scrape_profile(request.username)
+    log.info(f"Scraping completed for username: {request.username}")
     return {"video_data": data}
 
 @app.get("/")
