@@ -3,9 +3,9 @@
 import asyncio
 import json
 import logging
+import sys
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from loguru import logger as log
 from playwright.async_api import async_playwright, Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -16,30 +16,29 @@ from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 import time
 
-# Set up standard logging
-def setup_logger():
-    logger = logging.getLogger("tiktok_scraper")
-    logger.setLevel(logging.DEBUG)
-
-    fh = logging.FileHandler("scraper.log")
-    fh.setLevel(logging.DEBUG)
-
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-
-    formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(message)s')
-    fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
-
-    logger.addHandler(fh)
-    logger.addHandler(ch)
-
+def setup_logger(name: str, log_file: str, level=logging.DEBUG):
+    """Function to setup loggers that output to both file and stdout"""
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    
+    # File handler
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(formatter)
+    
+    # Stream handler (for stdout)
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(formatter)
+    
+    # Setup logger
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(file_handler)
+    logger.addHandler(stream_handler)
+    
     return logger
 
-logger = setup_logger()
-
-# Configure loguru logger
-log.add("app.log", rotation="500 MB", level="DEBUG")
+# Set up loggers
+main_logger = setup_logger('main_logger', 'main.log')
+scraper_logger = setup_logger('scraper_logger', 'scraper.log')
 
 app = FastAPI()
 
@@ -65,8 +64,7 @@ await scrollToEnd();
 
 def parse_channel(data):
     if "itemList" not in data:
-        logger.warning("itemList not found in data")
-        log.warning("itemList not found in data")
+        scraper_logger.warning("itemList not found in data")
         return []
     
     parsed_data = []
@@ -87,8 +85,7 @@ def parse_channel(data):
             }
             parsed_data.append(result)
         except Exception as e:
-            logger.error(f"Error parsing post: {str(e)}")
-            log.error(f"Error parsing post: {str(e)}")
+            scraper_logger.error(f"Error parsing post: {str(e)}")
     
     return parsed_data
 
@@ -96,15 +93,12 @@ async def load_page_with_retry(page, url, max_attempts=3):
     for attempt in range(1, max_attempts + 1):
         try:
             await page.goto(url, timeout=30000)
-            logger.info(f"Successfully loaded page: {url}")
-            log.info(f"Successfully loaded page: {url}")
+            main_logger.info(f"Successfully loaded page: {url}")
             return True
         except Exception as e:
-            logger.warning(f"Error loading page. Retrying... Attempt {attempt}/{max_attempts}. Error: {str(e)}")
-            log.warning(f"Error loading page. Retrying... Attempt {attempt}/{max_attempts}. Error: {str(e)}")
+            scraper_logger.warning(f"Error loading page. Retrying... Attempt {attempt}/{max_attempts}. Error: {str(e)}")
             await asyncio.sleep(2)  # Wait before retrying
-    logger.error(f"Failed to load page after {max_attempts} attempts: {url}")
-    log.error(f"Failed to load page after {max_attempts} attempts: {url}")
+    scraper_logger.error(f"Failed to load page after {max_attempts} attempts: {url}")
     return False
 
 def parse_json_response(response_text):
@@ -112,39 +106,31 @@ def parse_json_response(response_text):
         data = json.loads(response_text)
         # Validate if 'itemList' or 'userInfo' key exists
         if "itemList" in data or "userInfo" in data:
-            logger.info("Successfully parsed JSON response")
-            log.info("Successfully parsed JSON response")
+            main_logger.info("Successfully parsed JSON response")
             return data
         else:
-            logger.error("JSON response does not contain 'itemList' or 'userInfo'")
-            log.error("JSON response does not contain 'itemList' or 'userInfo'")
-            logger.debug(f"Response content: {response_text[:1000]}...")  # Log first 1000 characters
-            log.debug(f"Response content: {response_text[:1000]}...")
+            scraper_logger.error("JSON response does not contain 'itemList' or 'userInfo'")
+            scraper_logger.debug(f"Response content: {response_text[:1000]}...")  # Log first 1000 characters
             return None
     except json.JSONDecodeError as e:
-        logger.error(f"JSON decoding failed: {str(e)}")
-        log.error(f"JSON decoding failed: {str(e)}")
-        logger.debug(f"Response content: {response_text[:1000]}...")
-        log.debug(f"Response content: {response_text[:1000]}...")
+        scraper_logger.error(f"JSON decoding failed: {str(e)}")
+        scraper_logger.debug(f"Response content: {response_text[:1000]}...")
         return None
 
 def validate_data_structure(data):
     if not isinstance(data, dict):
-        logger.error("Data is not a dictionary.")
-        log.error("Data is not a dictionary.")
+        scraper_logger.error("Data is not a dictionary.")
         return False
     if "itemList" in data:
         required_keys = ["itemList", "hasMore", "cursor"]
     elif "userInfo" in data:
         required_keys = ["userInfo", "stats"]
     else:
-        logger.error("Data does not contain 'itemList' or 'userInfo'")
-        log.error("Data does not contain 'itemList' or 'userInfo'")
+        scraper_logger.error("Data does not contain 'itemList' or 'userInfo'")
         return False
     for key in required_keys:
         if key not in data:
-            logger.error(f"Missing key in data: {key}")
-            log.error(f"Missing key in data: {key}")
+            scraper_logger.error(f"Missing key in data: {key}")
             return False
     return True
 
@@ -160,14 +146,17 @@ def get_user_info(response_text):
         return data.get("userInfo", {})
     return {}
 
-async def scrape_profile_playwright(username: str):
+async def intercept_xhr(page):
     xhr_data_list = []
 
-    async def intercept_xhr(route, request):
+    async def handle_route(route, request):
         if "api/post/item_list" in request.url or "api/user/detail" in request.url:
             try:
+                main_logger.debug(f"Intercepting XHR request: {request.url}")
                 response = await route.fetch()
                 response_body = await response.text()
+                main_logger.debug(f"Received XHR response with status: {response.status}")
+                
                 xhr_data = {
                     "url": request.url,
                     "method": request.method,
@@ -180,83 +169,63 @@ async def scrape_profile_playwright(username: str):
                 if json_data:
                     if "api/post/item_list" in request.url:
                         xhr_data["itemList"] = json_data.get("itemList", [])
-                        logger.info(f"Successfully retrieved itemList with {len(xhr_data['itemList'])} items")
-                        log.info(f"Successfully retrieved itemList with {len(xhr_data['itemList'])} items")
+                        main_logger.info(f"Successfully intercepted itemList XHR: {request.url}")
+                        main_logger.debug(f"ItemList Data (first 2 items): {json_data.get('itemList', [])[:2]}")
                     elif "api/user/detail" in request.url:
                         xhr_data["userInfo"] = json_data.get("userInfo", {})
-                        logger.info("Successfully retrieved user details")
-                        log.info("Successfully retrieved user details")
+                        main_logger.info(f"Successfully intercepted userInfo XHR: {request.url}")
+                        main_logger.debug(f"UserInfo Data: {json_data.get('userInfo', {})}")
                 else:
                     xhr_data["parse_error"] = "Failed to parse JSON or missing required fields"
+                    scraper_logger.error(f"Failed to parse JSON from XHR: {request.url}")
+                    scraper_logger.debug(f"Raw response body: {response_body[:1000]}...")  # Log first 1000 characters
                 
                 xhr_data_list.append(xhr_data)
-                logger.debug(f"Intercepted XHR: {xhr_data['url']}")
-                log.debug(f"Intercepted XHR: {xhr_data['url']}")
             except Exception as e:
-                logger.error(f"Error intercepting XHR: {str(e)}")
-                log.error(f"Error intercepting XHR: {str(e)}")
+                scraper_logger.error(f"Error intercepting XHR {request.url}: {str(e)}")
         
         await route.continue_()
+    
+    await page.route("**/*", handle_route)
+    return xhr_data_list
 
-    async def console_handler(msg):
-        ignore_messages = [
-            "Starling ICU Warning",
-            "missing key",
-            "[TikTok desktop app SDK Monitor]",
-            "Failed to parse video contentType",
-            "loadable: `loadableReady()`",
-            "[i18n] missing key"
-        ]
-        if not any(ignore_msg in msg.text for ignore_msg in ignore_messages):
-            logger.debug(f"Browser console: {msg.text}")
-            log.debug(f"Browser console: {msg.text}")
-        if "error getItemList" in msg.text:
-            logger.error(f"getItemList error detected: {msg.text}")
-            log.error(f"getItemList error detected: {msg.text}")
-
+async def scrape_profile_playwright(username: str):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
         page = await context.new_page()
 
-        page.on("console", console_handler)
+        page.on("console", lambda msg: scraper_logger.debug(f"Browser console: {msg.text}"))
 
-        await page.route("**/*", intercept_xhr)
+        main_logger.info(f"Starting XHR interception for username: {username}")
+        xhr_data_list = await intercept_xhr(page)
 
         url = f"https://www.tiktok.com/@{username}"
-        logger.info(f"Attempting to navigate to: {url}")
-        log.info(f"Attempting to navigate to: {url}")
-        
+        main_logger.info(f"Attempting to navigate to: {url}")
+
         if not await load_page_with_retry(page, url):
+            scraper_logger.error(f"Failed to load page for username: {username}")
             return {"error": "Failed to load page after multiple attempts"}
 
         try:
-            logger.info("Starting scroll function")
-            log.info("Starting scroll function")
+            main_logger.info("Starting scroll function")
             await asyncio.wait_for(page.evaluate(js_scroll_function), timeout=120.0)
-            logger.info(f"Finished scrolling for username: {username}")
-            log.info(f"Finished scrolling for username: {username}")
+            main_logger.info(f"Finished scrolling for username: {username}")
         except PlaywrightTimeoutError:
-            logger.warning(f"Scrolling timed out for username: {username}. Continuing with data collection.")
-            log.warning(f"Scrolling timed out for username: {username}. Continuing with data collection.")
+            scraper_logger.warning(f"Scrolling timed out for username: {username}. Continuing with data collection.")
         except Exception as e:
-            logger.error(f"Error during scrolling for username {username}: {str(e)}")
-            log.error(f"Error during scrolling for username {username}: {str(e)}")
-            # Continue with the scraping process even if scrolling fails
+            scraper_logger.error(f"Error during scrolling for username {username}: {str(e)}")
 
-        logger.info("Waiting for additional XHR requests")
-        log.info("Waiting for additional XHR requests")
+        main_logger.info("Waiting for additional XHR requests")
         await page.wait_for_timeout(10000)
 
         await browser.close()
 
     if xhr_data_list:
-        logger.info(f"Captured {len(xhr_data_list)} XHR requests for username: {username}")
-        log.info(f"Captured {len(xhr_data_list)} XHR requests for username: {username}")
+        main_logger.info(f"Captured {len(xhr_data_list)} XHR requests for username: {username}")
         return {"xhr_data": xhr_data_list}
     else:
-        logger.error(f"No XHR data captured for username: {username}")
-        log.error(f"No XHR data captured for username: {username}")
+        scraper_logger.error(f"No XHR data captured for username: {username}")
         return {"error": f"No XHR data captured for username: {username}"}
 
 def initialize_driver():
@@ -283,8 +252,7 @@ def scrape_profile_selenium(username):
         page_source = driver.page_source
         return parse_profile_html(page_source)
     except Exception as e:
-        logger.error(f"Error scraping profile with Selenium: {e}")
-        log.error(f"Error scraping profile with Selenium: {e}")
+        scraper_logger.error(f"Error scraping profile with Selenium: {e}")
         return None
     finally:
         driver.quit()
@@ -298,16 +266,14 @@ def parse_profile_html(html):
     if username_tag:
         profile_data['username'] = username_tag.text.strip()
     else:
-        logger.error("Username not found in the profile HTML.")
-        log.error("Username not found in the profile HTML.")
+        scraper_logger.error("Username not found in the profile HTML.")
     
     # Extract follower count
     follower_count = soup.find('strong', {'data-e2e': 'followers-count'})
     if follower_count:
         profile_data['follower_count'] = follower_count.text.strip()
     else:
-        logger.error("Follower count not found in the profile HTML.")
-        log.error("Follower count not found in the profile HTML.")
+        scraper_logger.error("Follower count not found in the profile HTML.")
     
     # Extract video list
     video_items = soup.find_all('div', {'data-e2e': 'user-post-item'})
@@ -326,23 +292,19 @@ def parse_profile_html(html):
 
 @app.post("/scrape")
 async def scrape_tiktok(request: ScrapeRequest):
-    logger.info(f"Received scrape request for username: {request.username}")
-    log.info(f"Received scrape request for username: {request.username}")
+    main_logger.info(f"Received scrape request for username: {request.username}")
     
     # Try Selenium first
     selenium_data = scrape_profile_selenium(request.username)
     if selenium_data:
-        logger.info(f"Successfully scraped data using Selenium for username: {request.username}")
-        log.info(f"Successfully scraped data using Selenium for username: {request.username}")
+        main_logger.info(f"Successfully scraped data using Selenium for username: {request.username}")
         return selenium_data
     
     # Fallback to Playwright if Selenium fails
-    logger.warning(f"Selenium scraping failed for username: {request.username}. Falling back to Playwright.")
-    log.warning(f"Selenium scraping failed for username: {request.username}. Falling back to Playwright.")
+    scraper_logger.warning(f"Selenium scraping failed for username: {request.username}. Falling back to Playwright.")
     playwright_data = await scrape_profile_playwright(request.username)
     
-    logger.info(f"Scraping completed for username: {request.username}")
-    log.info(f"Scraping completed for username: {request.username}")
+    main_logger.info(f"Scraping completed for username: {request.username}")
     return playwright_data
 
 @app.get("/")
@@ -350,7 +312,6 @@ async def root():
     return {"message": "TikTok Scraper API is running. Use POST /scrape to scrape data."}
 
 if __name__ == "__main__":
-    logger.info("Starting TikTok Scraper API")
-    log.info("Starting TikTok Scraper API")
+    main_logger.info("Starting TikTok Scraper API")
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
