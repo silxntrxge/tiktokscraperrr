@@ -51,6 +51,9 @@ RUN playwright install chromium
 # Copy the application code into the container
 COPY . .
 
+# Create logs directory and set permissions
+RUN mkdir -p /app/logs && chmod 777 /app/logs
+
 # Expose the port the app runs on
 EXPOSE 8000
 
@@ -59,6 +62,3 @@ ENV PYTHONUNBUFFERED=1
 
 # Change the CMD to use unbuffered output
 CMD ["python", "-u", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-# Add this line to your Dockerfile
-RUN mkdir -p /app/logs && chmod 777 /app/logs

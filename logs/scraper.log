@@ -38,3 +38,8 @@
 2024-10-05 15:48:59,333 WARNING This is a warning message
 2024-10-05 15:48:59,333 ERROR This is an error message
 2024-10-05 15:48:59,333 CRITICAL This is a critical message
+2024-10-05 16:04:24,316 DEBUG This is a debug message
+2024-10-05 16:04:24,317 INFO This is an info message
+2024-10-05 16:04:24,317 WARNING This is a warning message
+2024-10-05 16:04:24,317 ERROR This is an error message
+2024-10-05 16:04:24,317 CRITICAL This is a critical message
