@@ -146,6 +146,44 @@ def get_user_info(response_text):
         return data.get("userInfo", {})
     return {}
 
+def parse_api_response(response_json):
+    """
+    Parses the API response and assigns the raw itemList to 'videos'.
+    
+    Args:
+        response_json (dict): The JSON response from the TikTok API.
+    
+    Returns:
+        dict: Parsed data with videos containing raw itemList data.
+    """
+    main_logger.debug("Starting to parse API response.")
+    
+    if not response_json:
+        scraper_logger.error("Empty response JSON.")
+        return {
+            "username": "",
+            "follower_count": "",
+            "videos": []
+        }
+    
+    # Extract general information
+    username = response_json.get('username', 'unknown')  # Adjust based on actual response
+    follower_count = response_json.get('follower_count', '0')  # Adjust based on actual response
+    
+    # Assign 'itemList' directly to 'videos'
+    item_list = response_json.get('itemList', [])
+    
+    if not item_list:
+        scraper_logger.warning("itemList is empty in the response.")
+    
+    main_logger.debug(f"Parsed username: {username}, follower_count: {follower_count}, number of items: {len(item_list)}")
+    
+    return {
+        "username": username,
+        "follower_count": follower_count,
+        "videos": item_list  # Directly assigning the raw itemList
+    }
+
 async def intercept_xhr(page):
     xhr_data_list = []
 
@@ -157,28 +195,29 @@ async def intercept_xhr(page):
                 response_body = await response.text()
                 main_logger.debug(f"Received XHR response with status: {response.status}")
                 
-                xhr_data = {
-                    "url": request.url,
-                    "method": request.method,
-                    "headers": dict(request.headers),
-                    "response_status": response.status,
-                    "response_headers": dict(response.headers)
-                }
-                
                 json_data = parse_json_response(response_body)
                 if json_data:
-                    if "api/post/item_list" in request.url:
-                        xhr_data["itemList"] = json_data.get("itemList", [])
-                        main_logger.info(f"Successfully intercepted itemList XHR: {request.url}")
-                        main_logger.debug(f"ItemList Data (first 2 items): {json_data.get('itemList', [])[:2]}")
-                    elif "api/user/detail" in request.url:
-                        xhr_data["userInfo"] = json_data.get("userInfo", {})
-                        main_logger.info(f"Successfully intercepted userInfo XHR: {request.url}")
-                        main_logger.debug(f"UserInfo Data: {json_data.get('userInfo', {})}")
+                    parsed_data = parse_api_response(json_data)
+                    xhr_data = {
+                        "url": request.url,
+                        "method": request.method,
+                        "headers": dict(request.headers),
+                        "response_status": response.status,
+                        "response_headers": dict(response.headers),
+                        "parsed_data": parsed_data
+                    }
+                    main_logger.info(f"Successfully intercepted and parsed XHR: {request.url}")
+                    main_logger.debug(f"Parsed Data: {json.dumps(parsed_data, indent=2)}")
                 else:
-                    xhr_data["parse_error"] = "Failed to parse JSON or missing required fields"
+                    xhr_data = {
+                        "url": request.url,
+                        "method": request.method,
+                        "headers": dict(request.headers),
+                        "response_status": response.status,
+                        "response_headers": dict(response.headers),
+                        "parse_error": "Failed to parse JSON or missing required fields"
+                    }
                     scraper_logger.error(f"Failed to parse JSON from XHR: {request.url}")
-                    scraper_logger.debug(f"Raw response body: {response_body[:1000]}...")  # Log first 1000 characters
                 
                 xhr_data_list.append(xhr_data)
             except Exception as e:
