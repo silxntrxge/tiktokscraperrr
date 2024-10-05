@@ -89,39 +89,37 @@ def parse_channel(data):
     return parsed_data
 
 async def load_page_with_retry(page, url, max_attempts=3):
-    for attempt in range(max_attempts):
+    for attempt in range(1, max_attempts + 1):
         try:
             await page.goto(url, timeout=30000)
+            logger.info(f"Successfully loaded page: {url}")
+            log.info(f"Successfully loaded page: {url}")
             return True
         except Exception as e:
-            logger.warning(f"Error loading page. Retrying... Attempt {attempt + 1}/{max_attempts}")
-            log.warning(f"Error loading page. Retrying... Attempt {attempt + 1}/{max_attempts}")
-            await asyncio.sleep(2)  # Add delay between retries
-    logger.error("Failed to load page after multiple attempts")
-    log.error("Failed to load page after multiple attempts")
+            logger.warning(f"Error loading page. Retrying... Attempt {attempt}/{max_attempts}. Error: {str(e)}")
+            log.warning(f"Error loading page. Retrying... Attempt {attempt}/{max_attempts}. Error: {str(e)}")
+            await asyncio.sleep(2)  # Wait before retrying
+    logger.error(f"Failed to load page after {max_attempts} attempts: {url}")
+    log.error(f"Failed to load page after {max_attempts} attempts: {url}")
     return False
 
 def parse_json_response(response_text):
     try:
         data = json.loads(response_text)
-        # Validate required fields
-        if "itemList" in data:
-            logger.info("Successfully parsed JSON response with 'itemList'")
-            log.info("Successfully parsed JSON response with 'itemList'")
-            return data
-        elif "userInfo" in data:
-            logger.info("Successfully parsed JSON response with 'userInfo'")
-            log.info("Successfully parsed JSON response with 'userInfo'")
+        # Validate if 'itemList' or 'userInfo' key exists
+        if "itemList" in data or "userInfo" in data:
+            logger.info("Successfully parsed JSON response")
+            log.info("Successfully parsed JSON response")
             return data
         else:
             logger.error("JSON response does not contain 'itemList' or 'userInfo'")
             log.error("JSON response does not contain 'itemList' or 'userInfo'")
-            logger.debug(f"Response content: {response_text[:1000]}...")
+            logger.debug(f"Response content: {response_text[:1000]}...")  # Log first 1000 characters
             log.debug(f"Response content: {response_text[:1000]}...")
             return None
     except json.JSONDecodeError as e:
-        logger.error(f"JSON decoding failed: {e}")
-        log.error(f"JSON decoding failed: {e}")
+        logger.error(f"JSON decoding failed: {str(e)}")
+        log.error(f"JSON decoding failed: {str(e)}")
         logger.debug(f"Response content: {response_text[:1000]}...")
         log.debug(f"Response content: {response_text[:1000]}...")
         return None
@@ -163,28 +161,36 @@ async def scrape_profile_playwright(username: str):
 
     async def intercept_xhr(route, request):
         if "api/post/item_list" in request.url or "api/user/detail" in request.url:
-            response = await route.fetch()
-            response_body = await response.text()
-            xhr_data = {
-                "url": request.url,
-                "method": request.method,
-                "headers": dict(request.headers),
-                "response_status": response.status,
-                "response_headers": dict(response.headers)
-            }
-            
-            if "api/post/item_list" in request.url:
-                xhr_data["itemList"] = get_item_list(response_body)
-                logger.info(f"Successfully retrieved itemList with {len(xhr_data['itemList'])} items")
-                log.info(f"Successfully retrieved itemList with {len(xhr_data['itemList'])} items")
-            elif "api/user/detail" in request.url:
-                xhr_data["userInfo"] = get_user_info(response_body)
-                logger.info("Successfully retrieved user details")
-                log.info("Successfully retrieved user details")
-            
-            xhr_data_list.append(xhr_data)
-            logger.debug(f"Intercepted XHR: {xhr_data['url']}")
-            log.debug(f"Intercepted XHR: {xhr_data['url']}")
+            try:
+                response = await route.fetch()
+                response_body = await response.text()
+                xhr_data = {
+                    "url": request.url,
+                    "method": request.method,
+                    "headers": dict(request.headers),
+                    "response_status": response.status,
+                    "response_headers": dict(response.headers)
+                }
+                
+                json_data = parse_json_response(response_body)
+                if json_data:
+                    if "api/post/item_list" in request.url:
+                        xhr_data["itemList"] = json_data.get("itemList", [])
+                        logger.info(f"Successfully retrieved itemList with {len(xhr_data['itemList'])} items")
+                        log.info(f"Successfully retrieved itemList with {len(xhr_data['itemList'])} items")
+                    elif "api/user/detail" in request.url:
+                        xhr_data["userInfo"] = json_data.get("userInfo", {})
+                        logger.info("Successfully retrieved user details")
+                        log.info("Successfully retrieved user details")
+                else:
+                    xhr_data["parse_error"] = "Failed to parse JSON or missing required fields"
+                
+                xhr_data_list.append(xhr_data)
+                logger.debug(f"Intercepted XHR: {xhr_data['url']}")
+                log.debug(f"Intercepted XHR: {xhr_data['url']}")
+            except Exception as e:
+                logger.error(f"Error intercepting XHR: {str(e)}")
+                log.error(f"Error intercepting XHR: {str(e)}")
         
         await route.continue_()
 
