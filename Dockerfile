@@ -4,12 +4,13 @@ FROM python:3.9-slim
 # Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies including curl and Chrome
+# Install system dependencies including curl, Chrome, and Java (for BrowserMob Proxy)
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     unzip \
     curl \
+    default-jre \
     && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
     && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
     && apt-get update \
@@ -25,6 +26,15 @@ RUN wget -N https://storage.googleapis.com/chrome-for-testing-public/129.0.6668.
     rm -rf ~/chromedriver-linux64 && \
     chown root:root /usr/local/bin/chromedriver && \
     chmod 0755 /usr/local/bin/chromedriver
+
+# Install BrowserMob Proxy
+RUN wget https://github.com/lightbody/browsermob-proxy/releases/download/browsermob-proxy-2.1.4/browsermob-proxy-2.1.4-bin.zip && \
+    unzip browsermob-proxy-2.1.4-bin.zip && \
+    mv browsermob-proxy-2.1.4 /opt/browsermob-proxy && \
+    rm browsermob-proxy-2.1.4-bin.zip
+
+# Add BrowserMob Proxy to PATH
+ENV PATH="/opt/browsermob-proxy/bin:${PATH}"
 
 # Upgrade pip
 RUN pip install --no-cache-dir --upgrade pip
@@ -49,3 +59,6 @@ ENV PYTHONUNBUFFERED=1
 
 # Change the CMD to use unbuffered output
 CMD ["python", "-u", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Add this line to your Dockerfile
+RUN mkdir -p /app/logs && chmod 777 /app/logs

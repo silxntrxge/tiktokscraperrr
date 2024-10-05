@@ -1,0 +1,64 @@
+2024-10-05 15:26:52,003 DEBUG This is a debug message
+2024-10-05 15:26:52,003 INFO This is an info message
+2024-10-05 15:26:52,003 WARNING This is a warning message
+2024-10-05 15:26:52,003 ERROR This is an error message
+2024-10-05 15:26:52,004 CRITICAL This is a critical message
+2024-10-05 15:26:52,004 INFO Starting TikTok Scraper API
+2024-10-05 15:27:00,493 DEBUG This is a debug message
+2024-10-05 15:27:00,493 INFO This is an info message
+2024-10-05 15:27:00,494 WARNING This is a warning message
+2024-10-05 15:27:00,494 ERROR This is an error message
+2024-10-05 15:27:00,494 CRITICAL This is a critical message
+2024-10-05 15:27:00,494 INFO Starting TikTok Scraper API
+2024-10-05 15:27:37,398 INFO Received scrape request for username: tiktok
+2024-10-05 15:27:37,399 INFO Attempting to scrape with Selenium for username: tiktok
+2024-10-05 15:27:51,676 INFO Successfully scraped data using Selenium for username: tiktok
+2024-10-05 15:32:33,853 INFO Received scrape request for username: tiktok
+2024-10-05 15:32:33,853 INFO Attempting to scrape with Selenium for username: tiktok
+2024-10-05 15:32:42,066 INFO Successfully scraped data using Selenium for username: tiktok
+2024-10-05 15:41:37,256 DEBUG This is a debug message
+2024-10-05 15:41:37,256 INFO This is an info message
+2024-10-05 15:41:37,257 WARNING This is a warning message
+2024-10-05 15:41:37,257 ERROR This is an error message
+2024-10-05 15:41:37,257 CRITICAL This is a critical message
+2024-10-05 15:41:37,257 INFO Starting TikTok Scraper API
+2024-10-05 15:41:45,995 INFO Received scrape request for username: tiktok
+2024-10-05 15:41:45,996 INFO Attempting to scrape with Selenium for username: tiktok
+2024-10-05 15:44:29,714 DEBUG This is a debug message
+2024-10-05 15:44:29,714 INFO This is an info message
+2024-10-05 15:44:29,714 WARNING This is a warning message
+2024-10-05 15:44:29,714 ERROR This is an error message
+2024-10-05 15:44:29,714 CRITICAL This is a critical message
+2024-10-05 15:44:29,714 INFO Starting TikTok Scraper API
+2024-10-05 15:44:32,685 INFO Received scrape request for username: tiktok
+2024-10-05 15:44:32,685 INFO Attempting to scrape with Selenium for username: tiktok
+2024-10-05 15:45:28,827 DEBUG This is a debug message
+2024-10-05 15:45:28,827 INFO This is an info message
+2024-10-05 15:45:28,827 WARNING This is a warning message
+2024-10-05 15:45:28,827 ERROR This is an error message
+2024-10-05 15:45:28,827 CRITICAL This is a critical message
+2024-10-05 15:45:28,828 INFO Starting TikTok Scraper API
+2024-10-05 15:45:32,970 INFO Received scrape request for username: tiktok
+2024-10-05 15:45:32,971 INFO Attempting to scrape with Selenium for username: tiktok
+2024-10-05 15:47:10,772 DEBUG This is a debug message
+2024-10-05 15:47:10,773 INFO This is an info message
+2024-10-05 15:47:10,773 WARNING This is a warning message
+2024-10-05 15:47:10,773 ERROR This is an error message
+2024-10-05 15:47:10,773 CRITICAL This is a critical message
+2024-10-05 15:47:10,773 INFO Starting TikTok Scraper API
+2024-10-05 15:47:13,673 INFO Received scrape request for username: tiktok
+2024-10-05 15:47:13,674 INFO Attempting to scrape with Selenium for username: tiktok
+2024-10-05 15:48:05,870 DEBUG This is a debug message
+2024-10-05 15:48:05,871 INFO This is an info message
+2024-10-05 15:48:05,871 WARNING This is a warning message
+2024-10-05 15:48:05,871 ERROR This is an error message
+2024-10-05 15:48:05,871 CRITICAL This is a critical message
+2024-10-05 15:48:05,871 INFO Starting TikTok Scraper API
+2024-10-05 15:48:59,332 DEBUG This is a debug message
+2024-10-05 15:48:59,332 INFO This is an info message
+2024-10-05 15:48:59,332 WARNING This is a warning message
+2024-10-05 15:48:59,332 ERROR This is an error message
+2024-10-05 15:48:59,332 CRITICAL This is a critical message
+2024-10-05 15:48:59,333 INFO Starting TikTok Scraper API
+2024-10-05 15:49:01,899 INFO Received scrape request for username: tiktok
+2024-10-05 15:49:01,899 INFO Attempting to scrape with Selenium for username: tiktok

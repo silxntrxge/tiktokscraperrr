@@ -4,6 +4,8 @@ import asyncio
 import json
 import logging
 import sys
+import os
+from logging.handlers import RotatingFileHandler
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from playwright.async_api import async_playwright, Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError
@@ -13,15 +15,17 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.proxy import Proxy, ProxyType
 from bs4 import BeautifulSoup
 import time
+from browsermobproxy import Server
 
-def setup_logger(name: str, log_file: str, level=logging.DEBUG):
+def setup_logger(name: str, log_file: str, level=logging.DEBUG, max_size=1048576, backup_count=5):
     """Function to setup loggers that output to both file and stdout"""
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     
-    # File handler
-    file_handler = logging.FileHandler(log_file)
+    # Rotating File Handler
+    file_handler = RotatingFileHandler(log_file, maxBytes=max_size, backupCount=backup_count)
     file_handler.setFormatter(formatter)
     
     # Stream handler (for stdout)
@@ -36,9 +40,32 @@ def setup_logger(name: str, log_file: str, level=logging.DEBUG):
     
     return logger
 
-# Set up loggers
-main_logger = setup_logger('main_logger', 'main.log')
-scraper_logger = setup_logger('scraper_logger', 'scraper.log')
+# Add this function to check for write permissions
+def check_log_permissions(log_dir):
+    if not os.path.exists(log_dir):
+        try:
+            os.makedirs(log_dir)
+        except PermissionError:
+            print(f"Error: No permission to create log directory: {log_dir}")
+            return False
+    if not os.access(log_dir, os.W_OK):
+        print(f"Error: No write permission for log directory: {log_dir}")
+        return False
+    return True
+
+# Add a test logging function
+def test_logging():
+    main_logger.debug("This is a debug message")
+    main_logger.info("This is an info message")
+    main_logger.warning("This is a warning message")
+    main_logger.error("This is an error message")
+    main_logger.critical("This is a critical message")
+    
+    scraper_logger.debug("This is a debug message")
+    scraper_logger.info("This is an info message")
+    scraper_logger.warning("This is a warning message")
+    scraper_logger.error("This is an error message")
+    scraper_logger.critical("This is a critical message")
 
 app = FastAPI()
 
@@ -191,9 +218,15 @@ async def intercept_xhr(page):
         if "api/post/item_list" in request.url or "api/user/detail" in request.url:
             try:
                 main_logger.debug(f"Intercepting XHR request: {request.url}")
+                main_logger.debug(f"Request headers: {request.headers}")
+                main_logger.debug(f"Request method: {request.method}")
+                
                 response = await route.fetch()
                 response_body = await response.text()
+                
                 main_logger.debug(f"Received XHR response with status: {response.status}")
+                main_logger.debug(f"Response headers: {response.headers}")
+                main_logger.debug(f"Response body (first 1000 chars): {response_body[:1000]}")
                 
                 json_data = parse_json_response(response_body)
                 if json_data:
@@ -218,10 +251,12 @@ async def intercept_xhr(page):
                         "parse_error": "Failed to parse JSON or missing required fields"
                     }
                     scraper_logger.error(f"Failed to parse JSON from XHR: {request.url}")
+                    scraper_logger.debug(f"Raw response body: {response_body}")
                 
                 xhr_data_list.append(xhr_data)
             except Exception as e:
                 scraper_logger.error(f"Error intercepting XHR {request.url}: {str(e)}")
+                scraper_logger.exception("Full traceback:")
         
         await route.continue_()
     
@@ -229,6 +264,7 @@ async def intercept_xhr(page):
     return xhr_data_list
 
 async def scrape_profile_playwright(username: str):
+    main_logger.info(f"Starting scrape_profile_playwright for username: {username}")
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
@@ -254,6 +290,7 @@ async def scrape_profile_playwright(username: str):
             scraper_logger.warning(f"Scrolling timed out for username: {username}. Continuing with data collection.")
         except Exception as e:
             scraper_logger.error(f"Error during scrolling for username {username}: {str(e)}")
+            scraper_logger.exception("Full traceback:")
 
         main_logger.info("Waiting for additional XHR requests")
         await page.wait_for_timeout(10000)
@@ -267,34 +304,83 @@ async def scrape_profile_playwright(username: str):
         scraper_logger.error(f"No XHR data captured for username: {username}")
         return {"error": f"No XHR data captured for username: {username}"}
 
-def initialize_driver():
+# Add this function to set up BrowserMob Proxy
+def setup_proxy():
+    server = Server("/opt/browsermob-proxy/bin/browsermob-proxy")
+    server.start()
+    proxy = server.create_proxy()
+    return server, proxy
+
+# Modify the initialize_driver function to use the proxy
+def initialize_driver(proxy):
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument(f'--proxy-server={proxy.proxy}')
     
     # Use the default ChromeDriver installed in the Docker image
     service = Service()
     
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    capabilities = webdriver.DesiredCapabilities.CHROME.copy()
+    Proxy({
+        'httpProxy': proxy.proxy,
+        'sslProxy': proxy.proxy,
+        'proxyType': ProxyType.MANUAL,
+    }).add_to_capabilities(capabilities)
+    
+    driver = webdriver.Chrome(service=service, options=chrome_options, desired_capabilities=capabilities)
     return driver
 
+# Modify the scrape_profile_selenium function to use BrowserMob Proxy
 def scrape_profile_selenium(username):
-    driver = initialize_driver()
+    server, proxy = setup_proxy()
     try:
-        driver.get(f"https://www.tiktok.com/@{username}")
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
-        page_source = driver.page_source
-        return parse_profile_html(page_source)
-    except Exception as e:
-        scraper_logger.error(f"Error scraping profile with Selenium: {e}")
-        return None
+        proxy.new_har(options={'captureHeaders': True, 'captureContent': True})
+        driver = initialize_driver(proxy)
+        
+        try:
+            driver.get(f"https://www.tiktok.com/@{username}")
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+            
+            # Scroll the page to trigger XHR requests
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(5)  # Wait for XHR requests to complete
+            
+            page_source = driver.page_source
+            har_data = proxy.har
+            
+            # Process HAR data to extract XHR requests
+            xhr_data = process_har_data(har_data)
+            
+            # Combine parsed HTML data with XHR data
+            profile_data = parse_profile_html(page_source)
+            profile_data['xhr_data'] = xhr_data
+            
+            return profile_data
+        except Exception as e:
+            scraper_logger.error(f"Error scraping profile with Selenium: {e}")
+            return None
+        finally:
+            driver.quit()
     finally:
-        driver.quit()
+        server.stop()
+
+# Add this function to process HAR data and extract XHR requests
+def process_har_data(har_data):
+    xhr_data = []
+    for entry in har_data['log']['entries']:
+        if 'xhr' in entry['request']['method'].lower():
+            xhr_data.append({
+                'url': entry['request']['url'],
+                'method': entry['request']['method'],
+                'response': entry['response']['content']['text'] if 'text' in entry['response']['content'] else None
+            })
+    return xhr_data
 
 def parse_profile_html(html):
     soup = BeautifulSoup(html, 'html.parser')
@@ -334,13 +420,14 @@ async def scrape_tiktok(request: ScrapeRequest):
     main_logger.info(f"Received scrape request for username: {request.username}")
     
     # Try Selenium first
+    main_logger.info(f"Attempting to scrape with Selenium for username: {request.username}")
     selenium_data = scrape_profile_selenium(request.username)
     if selenium_data:
         main_logger.info(f"Successfully scraped data using Selenium for username: {request.username}")
         return selenium_data
     
     # Fallback to Playwright if Selenium fails
-    scraper_logger.warning(f"Selenium scraping failed for username: {request.username}. Falling back to Playwright.")
+    main_logger.warning(f"Selenium scraping failed for username: {request.username}. Falling back to Playwright.")
     playwright_data = await scrape_profile_playwright(request.username)
     
     main_logger.info(f"Scraping completed for username: {request.username}")
@@ -351,6 +438,19 @@ async def root():
     return {"message": "TikTok Scraper API is running. Use POST /scrape to scrape data."}
 
 if __name__ == "__main__":
-    main_logger.info("Starting TikTok Scraper API")
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    log_dir = "logs"
+    if check_log_permissions(log_dir):
+        main_logger = setup_logger('main_logger', os.path.join(log_dir, 'main.log'))
+        scraper_logger = setup_logger('scraper_logger', os.path.join(log_dir, 'scraper.log'))
+        
+        main_logger.setLevel(logging.DEBUG)
+        scraper_logger.setLevel(logging.DEBUG)
+        
+        test_logging()
+        
+        main_logger.info("Starting TikTok Scraper API")
+        import uvicorn
+        uvicorn.run(app, host="0.0.0.0", port=8000)
+    else:
+        print("Error: Unable to set up logging due to permission issues.")
+        sys.exit(1)
