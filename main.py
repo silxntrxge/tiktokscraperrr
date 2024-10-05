@@ -261,8 +261,13 @@ def initialize_driver():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--window-size=1920,1080")
-    service = Service()  # Assuming ChromeDriver is in PATH
+    
+    # Use the default ChromeDriver installed in the Docker image
+    service = Service()
+    
     driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
 
