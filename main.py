@@ -19,6 +19,10 @@ from selenium.webdriver.common.proxy import Proxy, ProxyType
 from bs4 import BeautifulSoup
 import time
 from browsermobproxy import Server
+import psutil
+import socket
+import subprocess
+import shutil
 
 def setup_logger(name: str, log_file: str, level=logging.DEBUG, max_size=1048576, backup_count=5):
     """Function to setup loggers that output to both file and stdout"""
@@ -319,14 +323,86 @@ async def scrape_profile_playwright(username: str):
         scraper_logger.error(f"No XHR data captured for username: {username}")
         return {"error": f"No XHR data captured for username: {username}"}
 
-# Add this function to set up BrowserMob Proxy
-def setup_proxy():
-    server = Server("/opt/browsermob-proxy/bin/browsermob-proxy")
-    server.start()
-    proxy = server.create_proxy()
-    return server, proxy
+def is_port_in_use(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) == 0
 
-# Modify the initialize_driver function to use the proxy
+def setup_proxy():
+    proxy_path = "/opt/browsermob-proxy/bin/browsermob-proxy"
+    proxy_port = 8080  # Default port, adjust if needed
+    max_retries = 3
+    retry_delay = 5  # seconds
+    
+    # Check if the proxy executable exists
+    if not os.path.exists(proxy_path):
+        main_logger.error(f"Browsermob-Proxy executable not found at {proxy_path}")
+        # Check if browsermob-proxy is in PATH
+        browsermob_in_path = shutil.which("browsermob-proxy")
+        if browsermob_in_path:
+            main_logger.info(f"Found browsermob-proxy in PATH: {browsermob_in_path}")
+            proxy_path = browsermob_in_path
+        else:
+            main_logger.error("browsermob-proxy not found in PATH")
+            return None, None
+
+    # Check if Java is installed
+    try:
+        java_version = subprocess.check_output(["java", "-version"], stderr=subprocess.STDOUT).decode()
+        main_logger.info(f"Java version: {java_version.split()[2].strip('\"')}")
+    except subprocess.CalledProcessError:
+        main_logger.error("Java is not installed or not in PATH. Browsermob-Proxy requires Java to run.")
+        return None, None
+
+    for attempt in range(max_retries):
+        try:
+            main_logger.info(f"Attempt {attempt + 1} to start Browsermob-Proxy server at {proxy_path}")
+            server = Server(proxy_path)
+            server.start(options={'port': proxy_port})
+            main_logger.info("Browsermob-Proxy server started successfully")
+            
+            # Wait a bit for the server to fully initialize
+            time.sleep(2)
+            
+            try:
+                proxy = server.create_proxy()
+                main_logger.info(f"Proxy created successfully on port {proxy.port}")
+                return server, proxy
+            except Exception as e:
+                main_logger.error(f"Failed to create proxy: {str(e)}")
+                server.stop()
+                if attempt == max_retries - 1:
+                    return None, None
+        except Exception as e:
+            main_logger.error(f"Failed to start Browsermob-Proxy server: {str(e)}")
+            
+            # Try to get more information about the failure
+            try:
+                output = subprocess.check_output([proxy_path, "--version"], stderr=subprocess.STDOUT, timeout=10).decode()
+                main_logger.info(f"Browsermob-Proxy version: {output.strip()}")
+            except subprocess.CalledProcessError as e:
+                main_logger.error(f"Error getting Browsermob-Proxy version: {e.output.decode()}")
+            except subprocess.TimeoutExpired:
+                main_logger.error("Timeout while trying to get Browsermob-Proxy version")
+            
+            # Check if the process is already running
+            try:
+                output = subprocess.check_output(["pgrep", "-f", "browsermob-proxy"], stderr=subprocess.STDOUT).decode()
+                main_logger.warning(f"Browsermob-Proxy process already running with PID: {output.strip()}")
+                # Try to kill the existing process
+                subprocess.run(["pkill", "-f", "browsermob-proxy"])
+                main_logger.info("Attempted to kill existing Browsermob-Proxy process")
+            except subprocess.CalledProcessError:
+                main_logger.info("No existing Browsermob-Proxy process found")
+            
+            if attempt < max_retries - 1:
+                main_logger.info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                main_logger.error("Max retries reached. Unable to start Browsermob-Proxy.")
+                return None, None
+
+    return None, None
+
 def initialize_driver(proxy):
     chrome_options = Options()
     chrome_options.add_argument("--headless")
@@ -349,43 +425,60 @@ def initialize_driver(proxy):
     driver = webdriver.Chrome(service=service, options=chrome_options, desired_capabilities=capabilities)
     return driver
 
-# Modify the scrape_profile_selenium function to use BrowserMob Proxy
 def scrape_profile_selenium(username):
     server, proxy = setup_proxy()
+    if not proxy:
+        main_logger.error("Failed to set up proxy. Aborting Selenium scraping.")
+        return None
+
     try:
+        main_logger.info(f"Creating new HAR for {username}")
         proxy.new_har(options={'captureHeaders': True, 'captureContent': True})
+        
+        main_logger.info("Initializing Selenium WebDriver")
         driver = initialize_driver(proxy)
         
         try:
-            driver.get(f"https://www.tiktok.com/@{username}")
+            url = f"https://www.tiktok.com/@{username}"
+            main_logger.info(f"Navigating to {url}")
+            driver.get(url)
+            
+            main_logger.info("Waiting for body element to be present")
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
             
-            # Scroll the page to trigger XHR requests
+            main_logger.info("Scrolling page to trigger XHR requests")
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(5)  # Wait for XHR requests to complete
             
+            main_logger.info("Capturing page source and HAR data")
             page_source = driver.page_source
             har_data = proxy.har
             
-            # Process HAR data to extract XHR requests
+            main_logger.info("Processing HAR data")
             xhr_data = process_har_data(har_data)
             
-            # Combine parsed HTML data with XHR data
+            main_logger.info("Parsing profile HTML")
             profile_data = parse_profile_html(page_source)
             profile_data['xhr_data'] = xhr_data
             
+            main_logger.info(f"Scraping completed for {username}")
             return profile_data
         except Exception as e:
             scraper_logger.error(f"Error scraping profile with Selenium: {e}")
+            scraper_logger.exception("Full traceback:")
             return None
         finally:
+            main_logger.info("Closing Selenium WebDriver")
             driver.quit()
     finally:
-        server.stop()
+        if server:
+            main_logger.info("Stopping Browsermob-Proxy server")
+            server.stop()
+        main_logger.info("Closing proxy")
+        proxy.close()
 
-# Add this function to process HAR data and extract XHR requests
 def process_har_data(har_data):
     xhr_data = []
     for entry in har_data['log']['entries']:
