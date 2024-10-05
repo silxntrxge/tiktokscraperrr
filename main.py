@@ -1,3 +1,5 @@
+##stableversion:v0.1.3
+
 import asyncio
 import json
 import logging
