@@ -26,6 +26,9 @@ RUN CHROME_DRIVER_VERSION=$(curl -sS https://chromedriver.storage.googleapis.com
     chown root:root /usr/local/bin/chromedriver && \
     chmod 0755 /usr/local/bin/chromedriver
 
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip
+
 # Copy the requirements file into the container
 COPY requirements.txt .
 

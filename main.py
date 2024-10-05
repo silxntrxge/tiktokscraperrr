@@ -6,11 +6,13 @@ from pydantic import BaseModel
 from loguru import logger as log
 from playwright.async_api import async_playwright, Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 import time
-import undetected_chromedriver as uc
 
 # Set up standard logging
 def setup_logger():
@@ -260,40 +262,22 @@ def initialize_driver():
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
-    driver = webdriver.Chrome(options=chrome_options)
-    return driver
-
-def initialize_undetected_driver():
-    options = uc.ChromeOptions()
-    options.headless = True
-    driver = uc.Chrome(options=options)
+    service = Service()  # Assuming ChromeDriver is in PATH
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
 
 def scrape_profile_selenium(username):
     driver = initialize_driver()
     try:
         driver.get(f"https://www.tiktok.com/@{username}")
-        time.sleep(5)  # Wait for the page to load completely
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
         page_source = driver.page_source
         return parse_profile_html(page_source)
     except Exception as e:
         logger.error(f"Error scraping profile with Selenium: {e}")
         log.error(f"Error scraping profile with Selenium: {e}")
-        return None
-    finally:
-        driver.quit()
-
-def scrape_profile_undetected(username):
-    driver = initialize_undetected_driver()
-    try:
-        driver.get(f"https://www.tiktok.com/@{username}")
-        # Add necessary waits
-        driver.implicitly_wait(10)
-        page_source = driver.page_source
-        return parse_profile_html(page_source)
-    except Exception as e:
-        logger.error(f"Error scraping with undetected Chromedriver: {e}")
-        log.error(f"Error scraping with undetected Chromedriver: {e}")
         return None
     finally:
         driver.quit()
@@ -338,23 +322,16 @@ async def scrape_tiktok(request: ScrapeRequest):
     logger.info(f"Received scrape request for username: {request.username}")
     log.info(f"Received scrape request for username: {request.username}")
     
-    # Try undetected_chromedriver first
-    undetected_data = scrape_profile_undetected(request.username)
-    if undetected_data:
-        logger.info(f"Successfully scraped data using undetected_chromedriver for username: {request.username}")
-        log.info(f"Successfully scraped data using undetected_chromedriver for username: {request.username}")
-        return undetected_data
-    
-    # Try Selenium if undetected_chromedriver fails
+    # Try Selenium first
     selenium_data = scrape_profile_selenium(request.username)
     if selenium_data:
         logger.info(f"Successfully scraped data using Selenium for username: {request.username}")
         log.info(f"Successfully scraped data using Selenium for username: {request.username}")
         return selenium_data
     
-    # Fallback to Playwright if both undetected_chromedriver and Selenium fail
-    logger.warning(f"Undetected_chromedriver and Selenium scraping failed for username: {request.username}. Falling back to Playwright.")
-    log.warning(f"Undetected_chromedriver and Selenium scraping failed for username: {request.username}. Falling back to Playwright.")
+    # Fallback to Playwright if Selenium fails
+    logger.warning(f"Selenium scraping failed for username: {request.username}. Falling back to Playwright.")
+    log.warning(f"Selenium scraping failed for username: {request.username}. Falling back to Playwright.")
     playwright_data = await scrape_profile_playwright(request.username)
     
     logger.info(f"Scraping completed for username: {request.username}")
