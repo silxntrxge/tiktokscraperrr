@@ -538,38 +538,40 @@ def create_proxy():
         logger.error(f"Failed to create proxy: {e}")
         raise
 
-def gather_xhr_with_browsermob(url):
+def gather_xhr_with_browsermob(proxy, url):
     try:
-        proxy_port = create_proxy()
-        logger.info(f"Created proxy on port {proxy_port}")
+        proxy_port = proxy.port  # Use the existing proxy instead of creating a new one
+        main_logger.info(f"Using proxy on port {proxy_port}")
         
-        proxy_url = f"{PROXY_HOST}:{proxy_port}"
+        proxy_url = f"{proxy.host}:{proxy_port}"
         
         chrome_options = webdriver.ChromeOptions()
         chrome_options.add_argument(f'--proxy-server={proxy_url}')
         
         if IS_REMOTE:
-            logger.info(f"Using remote WebDriver at {WEBDRIVER_URL}")
+            main_logger.info(f"Using remote WebDriver at {WEBDRIVER_URL}")
             driver = webdriver.Remote(
                 command_executor=WEBDRIVER_URL,
                 options=chrome_options
             )
         else:
-            logger.info("Using local WebDriver")
+            main_logger.info("Using local WebDriver")
             driver = webdriver.Chrome(options=chrome_options)
         
         try:
-            logger.info(f"Sending GET request to {url}")
+            main_logger.info(f"Sending GET request to {url}")
             driver.get(url)
             # Add code here to extract XHR data
-            # ...
+            xhr_data = []  # Replace this with actual XHR data extraction
+            success = True
         finally:
             driver.quit()
-            logger.info(f"Stopping proxy on port {proxy_port}")
-            requests.delete(f'http://{PROXY_HOST}:{PROXY_PORT}/proxy/{proxy_port}')
+            main_logger.info(f"Closed WebDriver")
+        
+        return xhr_data, success
     except Exception as e:
-        logger.error(f"Error in gather_xhr_with_browsermob: {e}")
-        raise
+        main_logger.error(f"Error in gather_xhr_with_browsermob: {e}")
+        return None, False
 
 def gather_xhr_with_selenium(driver, url):
     try:
@@ -639,8 +641,6 @@ def setup_and_scrape(username):
        wait=wait_exponential(multiplier=1, min=4, max=10),
        retry=retry_if_exception_type((requests.RequestException, WebDriverException, Exception)))
 def scrape_tiktok_profile(username, server, proxy):
-    driver = None
-
     try:
         url = f"https://www.tiktok.com/@{username}"
         
@@ -658,7 +658,7 @@ def scrape_tiktok_profile(username, server, proxy):
                 xhr_data = gather_xhr_with_selenium(driver, url)
             except Exception as e:
                 main_logger.error(f"Error setting up Selenium: {e}")
-                raise  # This will trigger a retry
+                raise
 
         main_logger.info("Capturing page source")
         if driver:
@@ -677,7 +677,7 @@ def scrape_tiktok_profile(username, server, proxy):
     except Exception as e:
         main_logger.error(f"Error scraping profile: {e}")
         main_logger.exception("Full traceback:")
-        raise  # This will trigger a retry
+        raise
     finally:
         if driver:
             main_logger.info("Closing Selenium WebDriver")
