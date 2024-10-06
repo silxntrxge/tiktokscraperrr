@@ -34,6 +34,13 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 import requests
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from selenium.common.exceptions import TimeoutException
+
+# Add these environment variable definitions near the top of the file, after the imports
+IS_REMOTE = os.environ.get('IS_REMOTE', 'false').lower() == 'true'
+PROXY_HOST = os.environ.get('PROXY_HOST', 'localhost')
+PROXY_PORT = int(os.environ.get('PROXY_PORT', '8081'))
+WEBDRIVER_URL = os.environ.get('WEBDRIVER_URL', 'http://localhost:4444/wd/hub')
 
 def setup_logger(name: str, log_file: str, level=logging.DEBUG, max_size=1048576, backup_count=5):
     """Function to setup loggers that output to both file and stdout"""
@@ -573,12 +580,22 @@ def gather_xhr_with_browsermob(proxy, url):
         main_logger.error(f"Error in gather_xhr_with_browsermob: {e}")
         return None, False
 
-def gather_xhr_with_selenium(driver, url):
+def gather_xhr_with_selenium(driver, url, timeout=30):
     try:
+        main_logger.info(f"Navigating to {url} with Selenium")
         driver.get(url)
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-        # Execute JavaScript to capture XHR
-        xhr_data = driver.execute_script("""
+        
+        # Wait for the body element to be present
+        WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        
+        main_logger.info("Page loaded, executing JavaScript to capture XHR")
+        
+        # Set a script timeout
+        driver.set_script_timeout(timeout)
+        
+        # Execute JavaScript to capture XHR with a timeout
+        xhr_data = driver.execute_async_script("""
+            var callback = arguments[arguments.length - 1];
             var xhrData = [];
             var open = XMLHttpRequest.prototype.open;
             XMLHttpRequest.prototype.open = function() {
@@ -591,9 +608,18 @@ def gather_xhr_with_selenium(driver, url):
                 });
                 open.apply(this, arguments);
             };
-            return xhrData;
+            
+            // Set a timeout to return data even if no XHR requests are made
+            setTimeout(function() {
+                callback(xhrData);
+            }, 10000);  // Wait for 10 seconds
         """)
+        
+        main_logger.info(f"Captured {len(xhr_data)} XHR requests")
         return xhr_data
+    except TimeoutException:
+        main_logger.error(f"Timeout while loading page or executing script: {url}")
+        return None
     except Exception as e:
         main_logger.error(f"Error gathering XHR with Selenium: {e}")
         return None
@@ -641,6 +667,7 @@ def setup_and_scrape(username):
        wait=wait_exponential(multiplier=1, min=4, max=10),
        retry=retry_if_exception_type((requests.RequestException, WebDriverException, Exception)))
 def scrape_tiktok_profile(username, server, proxy):
+    driver = None
     try:
         url = f"https://www.tiktok.com/@{username}"
         
@@ -656,9 +683,18 @@ def scrape_tiktok_profile(username, server, proxy):
             try:
                 driver = setup_selenium_with_proxy(proxy) if proxy else setup_selenium_with_proxy(None)
                 xhr_data = gather_xhr_with_selenium(driver, url)
+                if xhr_data is None:
+                    main_logger.warning("Failed to gather XHR data with Selenium")
+                    success = False
+                else:
+                    success = True
             except Exception as e:
-                main_logger.error(f"Error setting up Selenium: {e}")
-                raise
+                main_logger.error(f"Error setting up or using Selenium: {e}")
+                success = False
+
+        if not success:
+            main_logger.error("Failed to gather XHR data with both Browsermob and Selenium")
+            return None
 
         main_logger.info("Capturing page source")
         if driver:
