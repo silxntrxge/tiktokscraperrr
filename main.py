@@ -496,24 +496,37 @@ def scrape_profile_selenium(username):
             main_logger.info(f"Navigating to {url}")
             driver.get(url)
             
-            main_logger.info("Waiting for body element to be present")
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
+            # Wait for the page to load
+            main_logger.info("Waiting for initial page load")
+            time.sleep(15)  # Increased wait time
             
+            # Log the current URL to check for redirects
+            main_logger.info(f"Current URL after loading: {driver.current_url}")
+            
+            # Scroll the page multiple times to trigger lazy loading and XHR requests
             main_logger.info("Scrolling page to trigger XHR requests")
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(5)  # Wait for XHR requests to complete
+            for _ in range(3):  # Scroll 3 times
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                time.sleep(5)  # Wait between scrolls
             
-            main_logger.info("Capturing page source and HAR data")
+            main_logger.info("Capturing page source")
             page_source = driver.page_source
+            
+            # Log a sample of the page source to verify content
+            main_logger.info(f"Page source sample: {page_source[:1000]}")
+            
+            main_logger.info("Parsing profile HTML")
+            profile_data = parse_profile_html(page_source)
+            
+            # Log the parsed profile data
+            main_logger.info(f"Parsed profile data: {profile_data}")
+            
+            main_logger.info("Capturing HAR data")
             har_data = proxy.har
             
             main_logger.info("Processing HAR data")
             xhr_data = process_har_data(har_data)
             
-            main_logger.info("Parsing profile HTML")
-            profile_data = parse_profile_html(page_source)
             profile_data['xhr_data'] = xhr_data
             
             main_logger.info(f"Scraping completed for {username}")
@@ -533,12 +546,13 @@ def scrape_profile_selenium(username):
         proxy.close()
 
 def process_har_data(har_data):
+    main_logger.info(f"Total entries in HAR data: {len(har_data['log']['entries'])}")
     xhr_data = []
     for entry in har_data['log']['entries']:
-        if 'xhr' in entry['request']['method'].lower():
+        main_logger.debug(f"Processing entry: {entry['request']['url']}")
+        if 'xhr' in entry['request']['method'].lower() or 'api' in entry['request']['url'].lower():
             response_content = entry['response']['content'].get('text', '')
             try:
-                # Attempt to parse the response as JSON
                 json_response = json.loads(response_content)
             except json.JSONDecodeError:
                 json_response = None
@@ -549,13 +563,16 @@ def process_har_data(har_data):
                 'response': json_response if json_response else response_content
             })
     
-    # Print the raw XHR data
-    main_logger.info("Raw XHR Data:")
-    for data in xhr_data:
-        main_logger.info(f"URL: {data['url']}")
-        main_logger.info(f"Method: {data['method']}")
-        main_logger.info(f"Response: {json.dumps(data['response'], indent=2)}")
-        main_logger.info("---")
+    main_logger.info(f"Processed XHR entries: {len(xhr_data)}")
+    if xhr_data:
+        main_logger.info("Raw XHR Data:")
+        for data in xhr_data:
+            main_logger.info(f"URL: {data['url']}")
+            main_logger.info(f"Method: {data['method']}")
+            main_logger.info(f"Response: {json.dumps(data['response'], indent=2)[:1000]}...")  # Limit response logging
+            main_logger.info("---")
+    else:
+        main_logger.warning("No XHR data captured")
 
     return xhr_data
 
@@ -563,16 +580,28 @@ def parse_profile_html(html):
     soup = BeautifulSoup(html, 'html.parser')
     profile_data = {}
     
-    # Updated selectors based on the latest TikTok profile page structure
-    username_tag = soup.find('h1', {'data-testid': 'user-title'})
-    if username_tag:
-        profile_data['username'] = username_tag.text.strip()
+    # Log the entire HTML structure for debugging
+    main_logger.debug(f"Full HTML structure: {soup.prettify()}")
+    
+    # Try multiple potential selectors
+    username_selectors = ['h1[data-testid="user-title"]', 'h1.tiktok-1d3iqmy-H1ShareTitle']
+    follower_selectors = ['strong[data-testid="followers-count"]', 'strong[title="Followers"]']
+    
+    for selector in username_selectors:
+        username_tag = soup.select_one(selector)
+        if username_tag:
+            profile_data['username'] = username_tag.text.strip()
+            main_logger.info(f"Username found using selector: {selector}")
+            break
     else:
         main_logger.error("Username not found in the profile HTML.")
     
-    follower_count = soup.find('strong', {'data-testid': 'followers-count'})
-    if follower_count:
-        profile_data['follower_count'] = follower_count.text.strip()
+    for selector in follower_selectors:
+        follower_count = soup.select_one(selector)
+        if follower_count:
+            profile_data['follower_count'] = follower_count.text.strip()
+            main_logger.info(f"Follower count found using selector: {selector}")
+            break
     else:
         main_logger.error("Follower count not found in the profile HTML.")
     
@@ -626,6 +655,12 @@ async def scrape_tiktok(request: ScrapeRequest):
 @app.get("/")
 async def root():
     return {"message": "TikTok Scraper API is running. Use POST /scrape to scrape data."}
+
+def check_proxy_settings(proxy):
+    main_logger.info("Checking proxy settings")
+    main_logger.info(f"Proxy port: {proxy.port}")
+    main_logger.info(f"Proxy host: {proxy.host}")
+    main_logger.info(f"Proxy har: {proxy.har}")
 
 if __name__ == "__main__":
     log_dir = "logs"
