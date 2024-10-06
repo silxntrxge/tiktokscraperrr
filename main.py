@@ -35,6 +35,7 @@ import requests
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.common.exceptions import TimeoutException
+from scraper import get_formatted_proxy_url, setup_proxy_config, scrape_tiktok_profile
 
 # Add these environment variable definitions near the top of the file, after the imports
 IS_REMOTE = os.environ.get('IS_REMOTE', 'false').lower() == 'true'
@@ -667,6 +668,56 @@ def setup_and_scrape(username):
             except Exception as e:
                 main_logger.error(f"Error closing proxy: {e}")
 
+@retry(stop=stop_after_attempt(3), 
+       wait=wait_exponential(multiplier=1, min=4, max=10),
+       retry=retry_if_exception_type((requests.RequestException, WebDriverException, Exception)))
+async def scrape_tiktok(request: ScrapeRequest):
+    main_logger.info(f"Received scrape request for username: {request.username}")
+    
+    # Check if there's a saved state for this username
+    saved_state = load_scraping_state(request.username)
+    
+    try:
+        if saved_state:
+            main_logger.info(f"Resuming scraping for {request.username} from saved state")
+            result = resume_scraping(request.username, saved_state)
+        else:
+            result = setup_and_scrape(request.username)
+        
+        if result:
+            main_logger.info(f"Successfully scraped data for username: {request.username}")
+            # Clear the saved state after successful scraping
+            clear_scraping_state(request.username)
+            return result
+        else:
+            raise HTTPException(status_code=500, detail="Failed to scrape TikTok profile")
+    except Exception as e:
+        main_logger.error(f"Error during scraping: {str(e)}")
+        # Save the current state before raising the exception
+        save_scraping_state(request.username, get_current_state())
+        raise HTTPException(status_code=500, detail=f"Error during scraping: {str(e)}")
+
+def load_scraping_state(username):
+    # Implement logic to load saved state from a file or database
+    # Return None if no saved state exists
+    pass
+
+def save_scraping_state(username, state):
+    # Implement logic to save the current scraping state
+    pass
+
+def clear_scraping_state(username):
+    # Implement logic to clear the saved state after successful scraping
+    pass
+
+def get_current_state():
+    # Implement logic to capture the current scraping state
+    pass
+
+def resume_scraping(username, saved_state):
+    # Implement logic to resume scraping from the saved state
+    pass
+
 @retry(stop=stop_after_attempt(2), 
        wait=wait_exponential(multiplier=1, min=4, max=10),
        retry=retry_if_exception_type((requests.RequestException, WebDriverException, Exception)))
@@ -704,7 +755,8 @@ def scrape_tiktok_profile(username, server, proxy):
         if driver:
             html_content = driver.page_source
         else:
-            response = requests.get(url, proxies={'http': proxy.proxy, 'https': proxy.proxy} if proxy else None)
+            proxy_config = setup_proxy_config(proxy)
+            response = requests.get(url, proxies=proxy_config)
             html_content = response.text
 
         main_logger.info("Parsing profile HTML")
@@ -846,19 +898,3 @@ if __name__ == "__main__":
         gather_xhr_with_browsermob("https://www.tiktok.com/@tiktok")
     except Exception as e:
         main_logger.error(f"Failed to gather XHR data: {e}")
-
-print("Python path:", sys.path)
-print("Current working directory:", os.getcwd())
-print("Files in current directory:", os.listdir())
-
-try:
-    import scraper
-    print("scraper.py successfully imported")
-except ImportError as e:
-    print("Error importing scraper.py:", str(e))
-
-try:
-    import your_script
-    print("your_script.py successfully imported")
-except ImportError as e:
-    print("Error importing your_script.py:", str(e))
