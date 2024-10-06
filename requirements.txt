@@ -1,8 +1,7 @@
-fastapi==0.68.1
-uvicorn==0.15.0
-loguru==0.5.3
-playwright==1.30.0
-selenium>=4.0.0,<5.0.0
-beautifulsoup4==4.9.3
-browsermob-proxy==0.8.0
-# Removed: psutil==5.9.5
+fastapi
+uvicorn
+playwright
+selenium
+beautifulsoup4
+browsermob-proxy
+psutil
