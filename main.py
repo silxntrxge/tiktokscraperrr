@@ -352,16 +352,48 @@ def verify_java_installation():
 
 def verify_proxy_executable():
     proxy_path = os.environ.get('BROWSERMOB_PROXY_PATH')
+    main_logger.info(f"Initial BROWSERMOB_PROXY_PATH: {proxy_path}")
+
     if not proxy_path:
-        main_logger.error("BROWSERMOB_PROXY_PATH environment variable is not set")
+        main_logger.info("BROWSERMOB_PROXY_PATH not set, searching for executable...")
+        possible_paths = [
+            '/opt/browsermob-proxy/bin/browsermob-proxy',
+            './browsermob-proxy',
+            'browsermob-proxy',
+            os.path.join(os.path.dirname(__file__), 'browsermob-proxy'),
+            os.path.join(os.path.dirname(__file__), 'browsermob-proxy', 'bin', 'browsermob-proxy'),
+        ]
+        for path in possible_paths:
+            main_logger.info(f"Checking path: {path}")
+            if os.path.isfile(path) and os.access(path, os.X_OK):
+                proxy_path = path
+                main_logger.info(f"Found executable at: {proxy_path}")
+                break
+            elif os.path.isfile(path + '.bat'):  # For Windows
+                proxy_path = path + '.bat'
+                main_logger.info(f"Found Windows executable at: {proxy_path}")
+                break
+        
+        if not proxy_path:
+            main_logger.info("Executable not found in common locations, searching in PATH...")
+            proxy_path = shutil.which('browsermob-proxy')
+            if proxy_path:
+                main_logger.info(f"Found executable in PATH: {proxy_path}")
+    
+    if not proxy_path:
+        main_logger.error("BROWSERMOB_PROXY_PATH not set and executable not found")
         return False
+    
     if not os.path.isfile(proxy_path):
         main_logger.error(f"Proxy executable not found at {proxy_path}")
         return False
+    
     if not os.access(proxy_path, os.X_OK):
         main_logger.error(f"Proxy executable at {proxy_path} is not executable")
         return False
+    
     main_logger.info(f"Proxy executable verified at {proxy_path}")
+    os.environ['BROWSERMOB_PROXY_PATH'] = proxy_path  # Set the environment variable
     return True
 
 def check_network_connectivity():
