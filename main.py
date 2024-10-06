@@ -552,18 +552,7 @@ def gather_xhr_with_browsermob(proxy, url):
         
         proxy_url = f"{proxy.host}:{proxy_port}"
         
-        chrome_options = webdriver.ChromeOptions()
-        chrome_options.add_argument(f'--proxy-server={proxy_url}')
-        
-        if IS_REMOTE:
-            main_logger.info(f"Using remote WebDriver at {WEBDRIVER_URL}")
-            driver = webdriver.Remote(
-                command_executor=WEBDRIVER_URL,
-                options=chrome_options
-            )
-        else:
-            main_logger.info("Using local WebDriver")
-            driver = webdriver.Chrome(options=chrome_options)
+        driver = setup_selenium_with_proxy(proxy)
         
         try:
             main_logger.info(f"Sending GET request to {url}")
@@ -633,15 +622,30 @@ def setup_selenium_with_proxy(proxy):
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
-    options.binary_location = "/opt/google/chrome/chrome"  # Specify the Chrome binary location
+    options.add_argument('--disable-gpu')
+    options.add_argument('--remote-debugging-port=9222')  # This can help with DevTools issues
+    options.add_argument('--disable-extensions')
+    options.add_argument('--disable-software-rasterizer')
+    
+    # Set the binary location only if it exists
+    chrome_binary = "/opt/google/chrome/chrome"
+    if os.path.exists(chrome_binary):
+        options.binary_location = chrome_binary
+    else:
+        main_logger.warning(f"Chrome binary not found at {chrome_binary}. Using default location.")
     
     try:
         # Try the newer Selenium version syntax
         service = Service(executable_path="/usr/local/bin/chromedriver")
         driver = webdriver.Chrome(service=service, options=options)
-    except TypeError:
-        # Fall back to older Selenium version syntax
-        driver = webdriver.Chrome(executable_path="/usr/local/bin/chromedriver", options=options)
+    except Exception as e:
+        main_logger.error(f"Error creating Chrome driver with service: {e}")
+        try:
+            # Fall back to older Selenium version syntax
+            driver = webdriver.Chrome(options=options)
+        except Exception as e:
+            main_logger.error(f"Error creating Chrome driver without service: {e}")
+            raise
     
     return driver
 
