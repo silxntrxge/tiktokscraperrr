@@ -536,11 +536,27 @@ def process_har_data(har_data):
     xhr_data = []
     for entry in har_data['log']['entries']:
         if 'xhr' in entry['request']['method'].lower():
+            response_content = entry['response']['content'].get('text', '')
+            try:
+                # Attempt to parse the response as JSON
+                json_response = json.loads(response_content)
+            except json.JSONDecodeError:
+                json_response = None
+
             xhr_data.append({
                 'url': entry['request']['url'],
                 'method': entry['request']['method'],
-                'response': entry['response']['content']['text'] if 'text' in entry['response']['content'] else None
+                'response': json_response if json_response else response_content
             })
+    
+    # Print the raw XHR data
+    main_logger.info("Raw XHR Data:")
+    for data in xhr_data:
+        main_logger.info(f"URL: {data['url']}")
+        main_logger.info(f"Method: {data['method']}")
+        main_logger.info(f"Response: {json.dumps(data['response'], indent=2)}")
+        main_logger.info("---")
+
     return xhr_data
 
 def parse_profile_html(html):
