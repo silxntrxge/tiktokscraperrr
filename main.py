@@ -33,6 +33,7 @@ from selenium.webdriver.common.by import By
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import requests
 from selenium.common.exceptions import WebDriverException
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
 def setup_logger(name: str, log_file: str, level=logging.DEBUG, max_size=1048576, backup_count=5):
     """Function to setup loggers that output to both file and stdout"""
@@ -529,43 +530,46 @@ def setup_browsermob_proxy():
         main_logger.exception("Full traceback:")
         return None, None
 
-def gather_xhr_with_browsermob(proxy, url):
+def create_proxy():
     try:
-        main_logger.info(f"Starting new HAR for URL: {url}")
-        proxy.new_har(options={'captureHeaders': True, 'captureContent': True})
-        proxy_url = f"http://localhost:{proxy.port}"
-        main_logger.info(f"Using proxy URL: {proxy_url}")
-        
-        main_logger.info(f"Sending GET request to {url}")
-        response = requests.get(url, proxies={'http': proxy_url, 'https': proxy_url}, timeout=30)
-        main_logger.info(f"Request status code: {response.status_code}")
-        
-        main_logger.info("Waiting for 10 seconds to capture XHR...")
-        time.sleep(10)
-        
-        har = proxy.har
-        main_logger.info(f"HAR entries captured: {len(har['log']['entries'])}")
-        
-        xhr_entries = [entry for entry in har['log']['entries'] 
-                       if entry['request']['method'] == 'POST' and 
-                       'application/json' in entry['request'].get('mimeType', '')]
-        main_logger.info(f"Captured {len(xhr_entries)} XHR entries")
-        
-        # Log some details about the captured XHR entries
-        for i, entry in enumerate(xhr_entries[:5]):  # Log details of first 5 entries
-            main_logger.info(f"XHR Entry {i+1}:")
-            main_logger.info(f"  URL: {entry['request']['url']}")
-            main_logger.info(f"  Method: {entry['request']['method']}")
-            main_logger.info(f"  Response Status: {entry['response']['status']}")
-        
-        return xhr_entries, True
+        proxy = requests.post(f'http://{PROXY_HOST}:{PROXY_PORT}/proxy').json()
+        return proxy['port']
     except requests.RequestException as e:
-        main_logger.error(f"Request error in gather_xhr_with_browsermob: {e}")
-        return None, False
+        logger.error(f"Failed to create proxy: {e}")
+        raise
+
+def gather_xhr_with_browsermob(url):
+    try:
+        proxy_port = create_proxy()
+        logger.info(f"Created proxy on port {proxy_port}")
+        
+        proxy_url = f"{PROXY_HOST}:{proxy_port}"
+        
+        chrome_options = webdriver.ChromeOptions()
+        chrome_options.add_argument(f'--proxy-server={proxy_url}')
+        
+        if IS_REMOTE:
+            logger.info(f"Using remote WebDriver at {WEBDRIVER_URL}")
+            driver = webdriver.Remote(
+                command_executor=WEBDRIVER_URL,
+                options=chrome_options
+            )
+        else:
+            logger.info("Using local WebDriver")
+            driver = webdriver.Chrome(options=chrome_options)
+        
+        try:
+            logger.info(f"Sending GET request to {url}")
+            driver.get(url)
+            # Add code here to extract XHR data
+            # ...
+        finally:
+            driver.quit()
+            logger.info(f"Stopping proxy on port {proxy_port}")
+            requests.delete(f'http://{PROXY_HOST}:{PROXY_PORT}/proxy/{proxy_port}')
     except Exception as e:
-        main_logger.error(f"Error gathering XHR with Browsermob: {e}")
-        main_logger.exception("Full traceback:")
-        return None, False
+        logger.error(f"Error in gather_xhr_with_browsermob: {e}")
+        raise
 
 def gather_xhr_with_selenium(driver, url):
     try:
@@ -790,15 +794,15 @@ def check_proxy_settings(proxy):
     main_logger.info(f"Proxy har: {proxy.har}")
 
 if __name__ == "__main__":
-    log_dir = "logs"
-    if check_log_permissions(log_dir):
-        if perform_setup_verification():
-            main_logger.info("Starting TikTok Scraper API")
-            import uvicorn
-            uvicorn.run(app, host="0.0.0.0", port=8000)
-        else:
-            main_logger.error("Setup verification failed. Exiting.")
-            sys.exit(1)
-    else:
-        print("Error: Unable to set up logging due to permission issues.")
-        sys.exit(1)
+    app_port = int(os.environ.get('PORT', '10000'))
+    main_logger.info(f"Starting application on port {app_port}")
+    
+    # Your main application code here
+    # For example:
+    # app.run(host='0.0.0.0', port=app_port)
+    
+    # Example usage of gather_xhr_with_browsermob
+    try:
+        gather_xhr_with_browsermob("https://www.tiktok.com/@tiktok")
+    except Exception as e:
+        main_logger.error(f"Failed to gather XHR data: {e}")
