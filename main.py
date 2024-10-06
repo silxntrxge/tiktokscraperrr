@@ -461,6 +461,10 @@ def initialize_driver(proxy):
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--window-size=1920,1080")
     
+    # Add these options to ignore SSL errors
+    chrome_options.add_argument('--ignore-certificate-errors')
+    chrome_options.add_argument('--ignore-ssl-errors')
+    
     # Set up proxy
     chrome_options.add_argument(f'--proxy-server={proxy.proxy}')
     
@@ -475,7 +479,11 @@ def initialize_driver(proxy):
     
     chrome_options.proxy = selenium_proxy
     
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    # Add these desired capabilities to ignore SSL errors
+    capabilities = webdriver.DesiredCapabilities.CHROME.copy()
+    capabilities['acceptInsecureCerts'] = True
+    
+    driver = webdriver.Chrome(service=service, options=chrome_options, desired_capabilities=capabilities)
     return driver
 
 def scrape_profile_selenium(username):
