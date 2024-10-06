@@ -30,8 +30,9 @@ import psutil
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import requests
+from selenium.common.exceptions import WebDriverException
 
 def setup_logger(name: str, log_file: str, level=logging.DEBUG, max_size=1048576, backup_count=5):
     """Function to setup loggers that output to both file and stdout"""
@@ -494,38 +495,76 @@ def initialize_driver(proxy):
 def setup_browsermob_proxy():
     try:
         proxy_path = os.environ.get('BROWSERMOB_PROXY_PATH', '/opt/browsermob-proxy/bin/browsermob-proxy')
-        # Get the port from the environment variable, or use a default
         port = int(os.environ.get('PORT', 10000))
-        main_logger.info(f"Attempting to start Browsermob-Proxy on port {port}")
+        main_logger.info(f"Attempting to start Browsermob-Proxy server on port {port}")
+        main_logger.info(f"Using proxy path: {proxy_path}")
+        
+        # Check if the proxy executable exists
+        if not os.path.exists(proxy_path):
+            main_logger.error(f"Browsermob-Proxy executable not found at {proxy_path}")
+            return None, None
+        
+        # Check Java version
+        java_version = subprocess.check_output(['java', '-version'], stderr=subprocess.STDOUT).decode()
+        main_logger.info(f"Java version: {java_version}")
         
         server = Server(proxy_path, options={'port': port})
         server.start()
         main_logger.info(f"Browsermob-Proxy server started on port {port}")
         
         proxy = server.create_proxy()
-        main_logger.info(f"Proxy created on port {proxy.port}")
+        main_logger.info(f"Proxy instance created on port {proxy.port}")
+        
+        # Test proxy connection
+        test_url = "http://example.com"
+        try:
+            response = requests.get(test_url, proxies={'http': f'http://localhost:{proxy.port}', 'https': f'http://localhost:{proxy.port}'}, timeout=10)
+            main_logger.info(f"Proxy test connection successful. Status code: {response.status_code}")
+        except requests.RequestException as e:
+            main_logger.error(f"Proxy test connection failed: {e}")
         
         return server, proxy
     except Exception as e:
         main_logger.error(f"Failed to set up Browsermob-Proxy: {e}")
+        main_logger.exception("Full traceback:")
         return None, None
 
 def gather_xhr_with_browsermob(proxy, url):
     try:
+        main_logger.info(f"Starting new HAR for URL: {url}")
         proxy.new_har(options={'captureHeaders': True, 'captureContent': True})
-        # Ensure the proxy URL has a scheme
-        proxy_url = f"http://{proxy.proxy}" if not proxy.proxy.startswith(('http://', 'https://')) else proxy.proxy
-        # Use requests to access the URL
-        requests.get(url, proxies={'http': proxy_url, 'https': proxy_url})
-        # Wait for content to load
+        proxy_url = f"http://localhost:{proxy.port}"
+        main_logger.info(f"Using proxy URL: {proxy_url}")
+        
+        main_logger.info(f"Sending GET request to {url}")
+        response = requests.get(url, proxies={'http': proxy_url, 'https': proxy_url}, timeout=30)
+        main_logger.info(f"Request status code: {response.status_code}")
+        
+        main_logger.info("Waiting for 10 seconds to capture XHR...")
         time.sleep(10)
+        
         har = proxy.har
+        main_logger.info(f"HAR entries captured: {len(har['log']['entries'])}")
+        
         xhr_entries = [entry for entry in har['log']['entries'] 
                        if entry['request']['method'] == 'POST' and 
                        'application/json' in entry['request'].get('mimeType', '')]
+        main_logger.info(f"Captured {len(xhr_entries)} XHR entries")
+        
+        # Log some details about the captured XHR entries
+        for i, entry in enumerate(xhr_entries[:5]):  # Log details of first 5 entries
+            main_logger.info(f"XHR Entry {i+1}:")
+            main_logger.info(f"  URL: {entry['request']['url']}")
+            main_logger.info(f"  Method: {entry['request']['method']}")
+            main_logger.info(f"  Response Status: {entry['response']['status']}")
+        
         return xhr_entries, True
+    except requests.RequestException as e:
+        main_logger.error(f"Request error in gather_xhr_with_browsermob: {e}")
+        return None, False
     except Exception as e:
         main_logger.error(f"Error gathering XHR with Browsermob: {e}")
+        main_logger.exception("Full traceback:")
         return None, False
 
 def gather_xhr_with_selenium(driver, url):
@@ -574,16 +613,31 @@ def setup_selenium_with_proxy(proxy):
     
     return driver
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-def scrape_tiktok_profile(username):
-    server, proxy = None, None
+def setup_and_scrape(username):
+    server, proxy = setup_browsermob_proxy()
+    try:
+        return scrape_tiktok_profile(username, server, proxy)
+    finally:
+        if server:
+            main_logger.info("Stopping Browsermob-Proxy server")
+            try:
+                server.stop()
+            except Exception as e:
+                main_logger.error(f"Error stopping Browsermob-Proxy server: {e}")
+        if proxy:
+            main_logger.info("Closing proxy")
+            try:
+                proxy.close()
+            except Exception as e:
+                main_logger.error(f"Error closing proxy: {e}")
+
+@retry(stop=stop_after_attempt(2), 
+       wait=wait_exponential(multiplier=1, min=4, max=10),
+       retry=retry_if_exception_type((requests.RequestException, WebDriverException, Exception)))
+def scrape_tiktok_profile(username, server, proxy):
     driver = None
 
     try:
-        server, proxy = setup_browsermob_proxy()
-        if not proxy:
-            main_logger.warning("Browsermob-Proxy setup failed, falling back to Selenium without proxy")
-        
         url = f"https://www.tiktok.com/@{username}"
         
         if proxy:
@@ -591,15 +645,16 @@ def scrape_tiktok_profile(username):
             xhr_data, success = gather_xhr_with_browsermob(proxy, url)
         else:
             success = False
+            main_logger.warning("Browsermob-Proxy not available, falling back to Selenium")
 
         if not success:
-            main_logger.info("Browsermob failed or not available, attempting with Selenium")
+            main_logger.info("Attempting with Selenium")
             try:
                 driver = setup_selenium_with_proxy(proxy) if proxy else setup_selenium_with_proxy(None)
                 xhr_data = gather_xhr_with_selenium(driver, url)
             except Exception as e:
                 main_logger.error(f"Error setting up Selenium: {e}")
-                return None
+                raise  # This will trigger a retry
 
         main_logger.info("Capturing page source")
         if driver:
@@ -618,23 +673,11 @@ def scrape_tiktok_profile(username):
     except Exception as e:
         main_logger.error(f"Error scraping profile: {e}")
         main_logger.exception("Full traceback:")
-        return None
+        raise  # This will trigger a retry
     finally:
         if driver:
             main_logger.info("Closing Selenium WebDriver")
             driver.quit()
-        if server:
-            main_logger.info("Stopping Browsermob-Proxy server")
-            try:
-                server.stop()
-            except Exception as e:
-                main_logger.error(f"Error stopping Browsermob-Proxy server: {e}")
-        if proxy:
-            main_logger.info("Closing proxy")
-            try:
-                proxy.close()
-            except Exception as e:
-                main_logger.error(f"Error closing proxy: {e}")
 
 def extract_xhr_data(har_data):
     xhr_entries = [entry for entry in har_data['log']['entries'] 
@@ -726,7 +769,7 @@ async def scrape_tiktok(request: ScrapeRequest):
     main_logger.info(f"Received scrape request for username: {request.username}")
     
     try:
-        result = scrape_tiktok_profile(request.username)
+        result = setup_and_scrape(request.username)
         if result:
             main_logger.info(f"Successfully scraped data for username: {request.username}")
             return result
