@@ -1,6 +1,7 @@
 ##stableversion:v0.1.3
 ##moreupdatesVersion:v.0.2.7
 ##moreupdatesVersion:v.0.3.0
+##showshtmlbutparsingerrorv0.3.5
 
 import asyncio
 import json
