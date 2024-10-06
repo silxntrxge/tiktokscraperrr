@@ -547,29 +547,27 @@ def parse_profile_html(html):
     soup = BeautifulSoup(html, 'html.parser')
     profile_data = {}
     
-    # Extract username
-    username_tag = soup.find('h1', {'data-e2e': 'user-title'})
+    # Updated selectors based on the latest TikTok profile page structure
+    username_tag = soup.find('h1', {'data-testid': 'user-title'})
     if username_tag:
         profile_data['username'] = username_tag.text.strip()
     else:
         main_logger.error("Username not found in the profile HTML.")
     
-    # Extract follower count
-    follower_count = soup.find('strong', {'data-e2e': 'followers-count'})
+    follower_count = soup.find('strong', {'data-testid': 'followers-count'})
     if follower_count:
         profile_data['follower_count'] = follower_count.text.strip()
     else:
         main_logger.error("Follower count not found in the profile HTML.")
     
-    # Extract video list
-    video_items = soup.find_all('div', {'data-e2e': 'user-post-item'})
+    video_items = soup.find_all('div', {'data-testid': 'user-post-item'})
     profile_data['videos'] = []
     for item in video_items:
         video_data = {}
         video_link = item.find('a')
         if video_link:
             video_data['link'] = video_link.get('href')
-        video_desc = item.find('div', {'data-e2e': 'user-post-item-desc'})
+        video_desc = item.find('div', {'data-testid': 'user-post-item-desc'})
         if video_desc:
             video_data['description'] = video_desc.text.strip()
         profile_data['videos'].append(video_data)
