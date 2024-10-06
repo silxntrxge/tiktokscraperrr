@@ -19,7 +19,6 @@ from selenium.webdriver.common.proxy import Proxy, ProxyType
 from bs4 import BeautifulSoup
 import time
 from browsermobproxy import Server
-import psutil
 import socket
 import subprocess
 import shutil
