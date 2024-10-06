@@ -846,3 +846,19 @@ if __name__ == "__main__":
         gather_xhr_with_browsermob("https://www.tiktok.com/@tiktok")
     except Exception as e:
         main_logger.error(f"Failed to gather XHR data: {e}")
+
+print("Python path:", sys.path)
+print("Current working directory:", os.getcwd())
+print("Files in current directory:", os.listdir())
+
+try:
+    import scraper
+    print("scraper.py successfully imported")
+except ImportError as e:
+    print("Error importing scraper.py:", str(e))
+
+try:
+    import your_script
+    print("your_script.py successfully imported")
+except ImportError as e:
+    print("Error importing your_script.py:", str(e))
