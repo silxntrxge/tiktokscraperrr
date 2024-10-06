@@ -430,19 +430,22 @@ def initialize_driver(proxy):
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--window-size=1920,1080")
+    
+    # Set up proxy
     chrome_options.add_argument(f'--proxy-server={proxy.proxy}')
     
     # Use the default ChromeDriver installed in the Docker image
     service = Service()
     
-    capabilities = webdriver.DesiredCapabilities.CHROME.copy()
-    Proxy({
-        'httpProxy': proxy.proxy,
-        'sslProxy': proxy.proxy,
-        'proxyType': ProxyType.MANUAL,
-    }).add_to_capabilities(capabilities)
+    # Create a Proxy object and set it in chrome_options
+    selenium_proxy = Proxy()
+    selenium_proxy.http_proxy = proxy.proxy
+    selenium_proxy.ssl_proxy = proxy.proxy
+    selenium_proxy.proxy_type = ProxyType.MANUAL
     
-    driver = webdriver.Chrome(service=service, options=chrome_options, desired_capabilities=capabilities)
+    chrome_options.proxy = selenium_proxy
+    
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
 
 def scrape_profile_selenium(username):
