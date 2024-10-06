@@ -493,7 +493,8 @@ def initialize_driver(proxy):
 
 def setup_browsermob_proxy():
     try:
-        server = Server("path/to/browsermob-proxy")
+        proxy_path = os.environ.get('BROWSERMOB_PROXY_PATH', '/opt/browsermob-proxy/bin/browsermob-proxy')
+        server = Server(proxy_path)
         server.start()
         proxy = server.create_proxy()
         return server, proxy
@@ -544,11 +545,15 @@ def gather_xhr_with_selenium(driver, url):
 
 def setup_selenium_with_proxy(proxy):
     options = Options()
-    options.add_argument(f'--proxy-server={proxy.proxy}')
+    options.add_argument(f'--proxy-server={proxy.proxy}' if proxy else '')
     options.add_argument('--ignore-certificate-errors')
     options.add_argument('--ignore-ssl-errors')
     options.add_argument('--headless')
-    driver = webdriver.Chrome(options=options)
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.binary_location = "/opt/google/chrome/chrome"  # Specify the Chrome binary location
+    service = Service(executable_path="/usr/local/bin/chromedriver")  # Specify the ChromeDriver path
+    driver = webdriver.Chrome(service=service, options=options)
     return driver
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
@@ -568,8 +573,12 @@ def scrape_tiktok_profile(username):
 
         if not success:
             main_logger.info("Browsermob failed or not available, attempting with Selenium")
-            driver = setup_selenium_with_proxy(proxy) if proxy else webdriver.Chrome(options=Options())
-            xhr_data = gather_xhr_with_selenium(driver, url)
+            try:
+                driver = setup_selenium_with_proxy(proxy) if proxy else setup_selenium_with_proxy(None)
+                xhr_data = gather_xhr_with_selenium(driver, url)
+            except Exception as e:
+                main_logger.error(f"Error setting up Selenium: {e}")
+                return None
 
         main_logger.info("Capturing page source")
         if driver:
