@@ -480,10 +480,9 @@ def initialize_driver(proxy):
     chrome_options.proxy = selenium_proxy
     
     # Add these desired capabilities to ignore SSL errors
-    capabilities = webdriver.DesiredCapabilities.CHROME.copy()
-    capabilities['acceptInsecureCerts'] = True
+    chrome_options.set_capability('acceptInsecureCerts', True)
     
-    driver = webdriver.Chrome(service=service, options=chrome_options, desired_capabilities=capabilities)
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
 
 def scrape_profile_selenium(username):
