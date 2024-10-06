@@ -342,7 +342,8 @@ def verify_java_installation():
     try:
         result = subprocess.run(["java", "-version"], capture_output=True, text=True)
         if result.returncode == 0:
-            main_logger.info(f"Java is installed: {result.stderr.split('\n')[0]}")
+            java_version = result.stderr.split('\n')[0]
+            main_logger.info(f"Java is installed: {java_version}")
             return True
         else:
             main_logger.error("Java is not installed or not in PATH")
