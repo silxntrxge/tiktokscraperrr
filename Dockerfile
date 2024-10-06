@@ -1,10 +1,10 @@
-# Use an official Python runtime as the base image
-FROM python:3.9-slim
+# Use a slim Python image with Java support
+FROM python:3.9-slim-bullseye
 
 # Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies including curl, Chrome, and Java (for BrowserMob Proxy)
+# Install system dependencies including curl, Chrome, Java, and BrowserMob Proxy
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
@@ -33,6 +33,12 @@ RUN wget https://github.com/lightbody/browsermob-proxy/releases/download/browser
     mv browsermob-proxy-2.1.4 /opt/browsermob-proxy && \
     rm browsermob-proxy-2.1.4-bin.zip
 
+# Set BROWSERMOB_PROXY_PATH environment variable
+ENV BROWSERMOB_PROXY_PATH=/opt/browsermob-proxy/bin/browsermob-proxy
+
+# Ensure proper file permissions on the proxy executable
+RUN chmod +x /opt/browsermob-proxy/bin/browsermob-proxy
+
 # Add BrowserMob Proxy to PATH
 ENV PATH="/opt/browsermob-proxy/bin:${PATH}"
 
@@ -60,5 +66,5 @@ EXPOSE 8000
 # Set environment variable to disable output buffering
 ENV PYTHONUNBUFFERED=1
 
-# Change the CMD to use unbuffered output
+# Change the CMD to use unbuffered output and include setup verification
 CMD ["python", "-u", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

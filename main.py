@@ -22,6 +22,8 @@ from browsermobproxy import Server
 import socket
 import subprocess
 import shutil
+import random
+import psutil
 
 def setup_logger(name: str, log_file: str, level=logging.DEBUG, max_size=1048576, backup_count=5):
     """Function to setup loggers that output to both file and stdout"""
@@ -91,20 +93,25 @@ class ScrapeRequest(BaseModel):
     username: str
 
 js_scroll_function = """
-async function scrollToEnd() {
-    let lastHeight = document.body.scrollHeight;
-    for (let i = 0; i < 15; i++) {
-        window.scrollTo(0, document.body.scrollHeight);
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        if (document.body.scrollHeight === lastHeight) {
-            console.log("Reached the bottom or no more content to load.");
-            break;
-        }
-        lastHeight = document.body.scrollHeight;
-    }
-    console.log("Finished scrolling.");
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
-await scrollToEnd();
+
+async function scrollToEnd() {
+  let lastHeight = document.body.scrollHeight;
+  for (let i = 0; i < 15; i++) {
+    window.scrollTo(0, document.body.scrollHeight);
+    await sleep(3000);
+    if (document.body.scrollHeight === lastHeight) {
+      console.log("Reached the bottom or no more content to load.");
+      break;
+    }
+    lastHeight = document.body.scrollHeight;
+  }
+  console.log("Finished scrolling.");
+}
+
+scrollToEnd();
 """
 
 def parse_channel(data):
@@ -239,42 +246,46 @@ async def intercept_xhr(page):
                 main_logger.debug(f"Request headers: {request.headers}")
                 main_logger.debug(f"Request method: {request.method}")
                 
-                response = await route.fetch()
+                # Add a random delay before fetching to avoid rate limiting
+                await asyncio.sleep(random.uniform(1, 3))
+                
+                # Modify headers to mimic a real browser more closely
+                modified_headers = {
+                    **request.headers,
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Sec-Fetch-Site": "same-origin",
+                    "Sec-Fetch-Mode": "cors",
+                    "Sec-Fetch-Dest": "empty",
+                    "Referer": "https://www.tiktok.com/",
+                }
+                
+                response = await route.fetch(headers=modified_headers)
                 response_body = await response.text()
                 
                 main_logger.debug(f"Received XHR response with status: {response.status}")
                 main_logger.debug(f"Response headers: {response.headers}")
                 main_logger.debug(f"Response body (first 1000 chars): {response_body[:1000]}")
                 
-                json_data = parse_json_response(response_body)
-                if json_data:
-                    parsed_data = parse_api_response(json_data)
-                    xhr_data = {
-                        "url": request.url,
-                        "method": request.method,
-                        "headers": dict(request.headers),
-                        "response_status": response.status,
-                        "response_headers": dict(response.headers),
-                        "parsed_data": parsed_data
-                    }
-                    main_logger.info(f"Successfully intercepted and parsed XHR: {request.url}")
-                    main_logger.debug(f"Parsed Data: {json.dumps(parsed_data, indent=2)}")
+                if response_body:
+                    try:
+                        json_data = json.loads(response_body)
+                        xhr_data = {
+                            "url": request.url,
+                            "method": request.method,
+                            "request_headers": dict(modified_headers),
+                            "response_status": response.status,
+                            "response_headers": dict(response.headers),
+                            "response_body": json_data
+                        }
+                        xhr_data_list.append(xhr_data)
+                        main_logger.info(f"Successfully captured XHR data for: {request.url}")
+                    except json.JSONDecodeError:
+                        main_logger.error(f"Failed to parse JSON from response: {response_body[:1000]}")
                 else:
-                    xhr_data = {
-                        "url": request.url,
-                        "method": request.method,
-                        "headers": dict(request.headers),
-                        "response_status": response.status,
-                        "response_headers": dict(response.headers),
-                        "parse_error": "Failed to parse JSON or missing required fields"
-                    }
-                    scraper_logger.error(f"Failed to parse JSON from XHR: {request.url}")
-                    scraper_logger.debug(f"Raw response body: {response_body}")
-                
-                xhr_data_list.append(xhr_data)
+                    main_logger.warning(f"Empty response body for URL: {request.url}")
             except Exception as e:
-                scraper_logger.error(f"Error intercepting XHR {request.url}: {str(e)}")
-                scraper_logger.exception("Full traceback:")
+                main_logger.error(f"Error intercepting XHR {request.url}: {str(e)}")
         
         await route.continue_()
     
@@ -285,7 +296,9 @@ async def scrape_profile_playwright(username: str):
     main_logger.info(f"Starting scrape_profile_playwright for username: {username}")
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context()
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        )
         page = await context.new_page()
 
         page.on("console", lambda msg: scraper_logger.debug(f"Browser console: {msg.text}"))
@@ -296,19 +309,18 @@ async def scrape_profile_playwright(username: str):
         url = f"https://www.tiktok.com/@{username}"
         main_logger.info(f"Attempting to navigate to: {url}")
 
-        if not await load_page_with_retry(page, url):
-            scraper_logger.error(f"Failed to load page for username: {username}")
-            return {"error": "Failed to load page after multiple attempts"}
+        try:
+            await page.goto(url, wait_until="networkidle", timeout=60000)
+            main_logger.info(f"Successfully loaded page: {url}")
+        except PlaywrightTimeoutError:
+            main_logger.warning(f"Timeout while loading page: {url}. Continuing with partial page load.")
 
         try:
             main_logger.info("Starting scroll function")
-            await asyncio.wait_for(page.evaluate(js_scroll_function), timeout=120.0)
+            await page.evaluate(js_scroll_function)
             main_logger.info(f"Finished scrolling for username: {username}")
-        except PlaywrightTimeoutError:
-            scraper_logger.warning(f"Scrolling timed out for username: {username}. Continuing with data collection.")
-        except Exception as e:
-            scraper_logger.error(f"Error during scrolling for username {username}: {str(e)}")
-            scraper_logger.exception("Full traceback:")
+        except PlaywrightError as e:
+            main_logger.error(f"Error during scrolling for username {username}: {str(e)}")
 
         main_logger.info("Waiting for additional XHR requests")
         await page.wait_for_timeout(10000)
@@ -319,48 +331,73 @@ async def scrape_profile_playwright(username: str):
         main_logger.info(f"Captured {len(xhr_data_list)} XHR requests for username: {username}")
         return {"xhr_data": xhr_data_list}
     else:
-        scraper_logger.error(f"No XHR data captured for username: {username}")
+        main_logger.warning(f"No XHR data captured for username: {username}")
         return {"error": f"No XHR data captured for username: {username}"}
 
 def is_port_in_use(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('localhost', port)) == 0
 
-def setup_proxy():
-    proxy_path = "/opt/browsermob-proxy/bin/browsermob-proxy"
-    proxy_port = 8080  # Default port, adjust if needed
-    max_retries = 3
-    retry_delay = 5  # seconds
-    
-    # Check if the proxy executable exists
-    if not os.path.exists(proxy_path):
-        main_logger.error(f"Browsermob-Proxy executable not found at {proxy_path}")
-        # Check if browsermob-proxy is in PATH
-        browsermob_in_path = shutil.which("browsermob-proxy")
-        if browsermob_in_path:
-            main_logger.info(f"Found browsermob-proxy in PATH: {browsermob_in_path}")
-            proxy_path = browsermob_in_path
-        else:
-            main_logger.error("browsermob-proxy not found in PATH")
-            return None, None
-
-    # Check if Java is installed
+def verify_java_installation():
     try:
-        java_version = subprocess.check_output(["java", "-version"], stderr=subprocess.STDOUT).decode()
-        version_string = java_version.split()[2].strip('"')
-        main_logger.info(f"Java version: {version_string}")
-    except subprocess.CalledProcessError:
-        main_logger.error("Java is not installed or not in PATH. Browsermob-Proxy requires Java to run.")
+        result = subprocess.run(["java", "-version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            main_logger.info(f"Java is installed: {result.stderr.split('\n')[0]}")
+            return True
+        else:
+            main_logger.error("Java is not installed or not in PATH")
+            return False
+    except Exception as e:
+        main_logger.error(f"Error checking Java installation: {str(e)}")
+        return False
+
+def verify_proxy_executable():
+    proxy_path = os.environ.get('BROWSERMOB_PROXY_PATH')
+    if not proxy_path:
+        main_logger.error("BROWSERMOB_PROXY_PATH environment variable is not set")
+        return False
+    if not os.path.isfile(proxy_path):
+        main_logger.error(f"Proxy executable not found at {proxy_path}")
+        return False
+    if not os.access(proxy_path, os.X_OK):
+        main_logger.error(f"Proxy executable at {proxy_path} is not executable")
+        return False
+    main_logger.info(f"Proxy executable verified at {proxy_path}")
+    return True
+
+def check_network_connectivity():
+    try:
+        socket.create_connection(("www.google.com", 80))
+        main_logger.info("Network connectivity: OK")
+        return True
+    except OSError:
+        main_logger.error("Network connectivity: Failed")
+        return False
+
+def monitor_resource_usage():
+    cpu_percent = psutil.cpu_percent()
+    memory_percent = psutil.virtual_memory().percent
+    main_logger.info(f"CPU usage: {cpu_percent}%, Memory usage: {memory_percent}%")
+
+def setup_proxy():
+    if not verify_java_installation():
         return None, None
+
+    if not verify_proxy_executable():
+        return None, None
+
+    proxy_path = os.environ.get('BROWSERMOB_PROXY_PATH')
+    proxy_port = 8080
+    max_retries = 3
+    retry_delay = 5
 
     for attempt in range(max_retries):
         try:
-            main_logger.info(f"Attempt {attempt + 1} to start Browsermob-Proxy server at {proxy_path}")
+            main_logger.info(f"Attempt {attempt + 1} to start Browsermob-Proxy server")
             server = Server(proxy_path)
             server.start(options={'port': proxy_port})
             main_logger.info("Browsermob-Proxy server started successfully")
             
-            # Wait a bit for the server to fully initialize
             time.sleep(2)
             
             try:
@@ -374,25 +411,6 @@ def setup_proxy():
                     return None, None
         except Exception as e:
             main_logger.error(f"Failed to start Browsermob-Proxy server: {str(e)}")
-            
-            # Try to get more information about the failure
-            try:
-                output = subprocess.check_output([proxy_path, "--version"], stderr=subprocess.STDOUT, timeout=10).decode()
-                main_logger.info(f"Browsermob-Proxy version: {output.strip()}")
-            except subprocess.CalledProcessError as e:
-                main_logger.error(f"Error getting Browsermob-Proxy version: {e.output.decode()}")
-            except subprocess.TimeoutExpired:
-                main_logger.error("Timeout while trying to get Browsermob-Proxy version")
-            
-            # Check if the process is already running
-            try:
-                output = subprocess.check_output(["pgrep", "-f", "browsermob-proxy"], stderr=subprocess.STDOUT).decode()
-                main_logger.warning(f"Browsermob-Proxy process already running with PID: {output.strip()}")
-                # Try to kill the existing process
-                subprocess.run(["pkill", "-f", "browsermob-proxy"])
-                main_logger.info("Attempted to kill existing Browsermob-Proxy process")
-            except subprocess.CalledProcessError:
-                main_logger.info("No existing Browsermob-Proxy process found")
             
             if attempt < max_retries - 1:
                 main_logger.info(f"Retrying in {retry_delay} seconds...")
@@ -523,6 +541,18 @@ def parse_profile_html(html):
     
     return profile_data
 
+def perform_setup_verification():
+    main_logger.info("Performing setup verification...")
+    if not verify_java_installation():
+        return False
+    if not verify_proxy_executable():
+        return False
+    if not check_network_connectivity():
+        return False
+    monitor_resource_usage()
+    main_logger.info("Setup verification completed successfully")
+    return True
+
 @app.post("/scrape")
 async def scrape_tiktok(request: ScrapeRequest):
     main_logger.info(f"Received scrape request for username: {request.username}")
@@ -556,9 +586,13 @@ if __name__ == "__main__":
         
         test_logging()
         
-        main_logger.info("Starting TikTok Scraper API")
-        import uvicorn
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        if perform_setup_verification():
+            main_logger.info("Starting TikTok Scraper API")
+            import uvicorn
+            uvicorn.run(app, host="0.0.0.0", port=8000)
+        else:
+            main_logger.error("Setup verification failed. Exiting.")
+            sys.exit(1)
     else:
         print("Error: Unable to set up logging due to permission issues.")
         sys.exit(1)
