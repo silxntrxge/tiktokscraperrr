@@ -27,6 +27,12 @@ import subprocess
 import shutil
 import random
 import psutil
+from browsermob_proxy import Server
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from tenacity import retry, stop_after_attempt, wait_exponential
+import requests
 
 def setup_logger(name: str, log_file: str, level=logging.DEBUG, max_size=1048576, backup_count=5):
     """Function to setup loggers that output to both file and stdout"""
@@ -486,103 +492,147 @@ def initialize_driver(proxy):
     driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
 
-def scrape_profile_selenium(username):
-    server, proxy = setup_proxy()
-    if not proxy:
-        main_logger.error("Failed to set up proxy. Aborting Selenium scraping.")
+def setup_browsermob_proxy():
+    try:
+        server = Server("path/to/browsermob-proxy")
+        server.start()
+        proxy = server.create_proxy()
+        return server, proxy
+    except Exception as e:
+        main_logger.error(f"Failed to set up Browsermob-Proxy: {e}")
+        return None, None
+
+def gather_xhr_with_browsermob(proxy, url):
+    try:
+        proxy.new_har(options={'captureHeaders': True, 'captureContent': True})
+        # Use requests to access the URL
+        requests.get(url, proxies={'http': proxy.proxy, 'https': proxy.proxy})
+        # Wait for content to load
+        time.sleep(10)
+        har = proxy.har
+        xhr_entries = [entry for entry in har['log']['entries'] 
+                       if entry['request']['method'] == 'POST' and 
+                       'application/json' in entry['request'].get('mimeType', '')]
+        return xhr_entries, True
+    except Exception as e:
+        main_logger.error(f"Error gathering XHR with Browsermob: {e}")
+        return None, False
+
+def gather_xhr_with_selenium(driver, url):
+    try:
+        driver.get(url)
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        # Execute JavaScript to capture XHR
+        xhr_data = driver.execute_script("""
+            var xhrData = [];
+            var open = XMLHttpRequest.prototype.open;
+            XMLHttpRequest.prototype.open = function() {
+                this.addEventListener('load', function() {
+                    xhrData.push({
+                        url: this.responseURL,
+                        method: arguments[0],
+                        data: this.response
+                    });
+                });
+                open.apply(this, arguments);
+            };
+            return xhrData;
+        """)
+        return xhr_data
+    except Exception as e:
+        main_logger.error(f"Error gathering XHR with Selenium: {e}")
         return None
 
+def setup_selenium_with_proxy(proxy):
+    options = Options()
+    options.add_argument(f'--proxy-server={proxy.proxy}')
+    options.add_argument('--ignore-certificate-errors')
+    options.add_argument('--ignore-ssl-errors')
+    options.add_argument('--headless')
+    driver = webdriver.Chrome(options=options)
+    return driver
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+def scrape_tiktok_profile(username):
+    server, proxy = setup_browsermob_proxy()
+    driver = None
+
     try:
-        main_logger.info(f"Creating new HAR for {username}")
-        proxy.new_har(options={'captureHeaders': True, 'captureContent': True})
+        url = f"https://www.tiktok.com/@{username}"
         
-        main_logger.info("Initializing Selenium WebDriver")
-        driver = initialize_driver(proxy)
+        if proxy:
+            main_logger.info(f"Attempting to gather XHR with Browsermob for {username}")
+            xhr_data, success = gather_xhr_with_browsermob(proxy, url)
+        else:
+            main_logger.warning("Browsermob-Proxy setup failed, falling back to Selenium without proxy")
+            success = False
+
+        if not success:
+            main_logger.info("Browsermob failed or not available, attempting with Selenium")
+            driver = setup_selenium_with_proxy(proxy) if proxy else webdriver.Chrome(options=Options())
+            xhr_data = gather_xhr_with_selenium(driver, url)
+
+        main_logger.info("Capturing page source")
+        if driver:
+            html_content = driver.page_source
+        else:
+            response = requests.get(url, proxies={'http': proxy.proxy, 'https': proxy.proxy} if proxy else None)
+            html_content = response.text
+
+        main_logger.info("Parsing profile HTML")
+        profile_data = parse_profile_html(html_content)
         
-        try:
-            url = f"https://www.tiktok.com/@{username}"
-            main_logger.info(f"Navigating to {url}")
-            driver.get(url)
-            
-            # Wait for the page to load
-            main_logger.info("Waiting for initial page load")
-            time.sleep(15)  # Increased wait time
-            
-            # Log the current URL to check for redirects
-            main_logger.info(f"Current URL after loading: {driver.current_url}")
-            
-            # Scroll the page multiple times to trigger lazy loading and XHR requests
-            main_logger.info("Scrolling page to trigger XHR requests")
-            for _ in range(3):  # Scroll 3 times
-                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                time.sleep(5)  # Wait between scrolls
-            
-            main_logger.info("Capturing page source")
-            page_source = driver.page_source
-            
-            # Log a sample of the page source to verify content
-            main_logger.info(f"Page source sample: {page_source[:1000]}")
-            
-            main_logger.info("Parsing profile HTML")
-            profile_data = parse_profile_html(page_source)
-            
-            # Log the parsed profile data
-            main_logger.info(f"Parsed profile data: {profile_data}")
-            
-            main_logger.info("Capturing HAR data")
-            har_data = proxy.har
-            
-            main_logger.info("Processing HAR data")
-            xhr_data = process_har_data(har_data)
-            
-            profile_data['xhr_data'] = xhr_data
-            
-            main_logger.info(f"Scraping completed for {username}")
-            return profile_data
-        except Exception as e:
-            main_logger.error(f"Error scraping profile with Selenium: {e}")
-            main_logger.exception("Full traceback:")
-            return None
-        finally:
+        profile_data['xhr_data'] = xhr_data
+        
+        main_logger.info(f"Scraping completed for {username}")
+        return profile_data
+    except Exception as e:
+        main_logger.error(f"Error scraping profile: {e}")
+        main_logger.exception("Full traceback:")
+        return None
+    finally:
+        if driver:
             main_logger.info("Closing Selenium WebDriver")
             driver.quit()
-    finally:
         if server:
             main_logger.info("Stopping Browsermob-Proxy server")
-            server.stop()
-        main_logger.info("Closing proxy")
-        proxy.close()
+            try:
+                server.stop()
+            except Exception as e:
+                main_logger.error(f"Error stopping Browsermob-Proxy server: {e}")
+        if proxy:
+            main_logger.info("Closing proxy")
+            try:
+                proxy.close()
+            except Exception as e:
+                main_logger.error(f"Error closing proxy: {e}")
 
-def process_har_data(har_data):
-    main_logger.info(f"Total entries in HAR data: {len(har_data['log']['entries'])}")
-    xhr_data = []
-    for entry in har_data['log']['entries']:
-        main_logger.debug(f"Processing entry: {entry['request']['url']}")
-        if 'xhr' in entry['request']['method'].lower() or 'api' in entry['request']['url'].lower():
+def extract_xhr_data(har_data):
+    xhr_entries = [entry for entry in har_data['log']['entries'] 
+                   if entry['request']['method'] == 'POST' and 
+                   'application/json' in entry['request'].get('mimeType', '')]
+    
+    processed_xhr_data = []
+    for entry in xhr_entries:
+        try:
+            request_url = entry['request']['url']
             response_content = entry['response']['content'].get('text', '')
+            
             try:
                 json_response = json.loads(response_content)
             except json.JSONDecodeError:
                 json_response = None
-
-            xhr_data.append({
-                'url': entry['request']['url'],
+            
+            processed_xhr_data.append({
+                'url': request_url,
                 'method': entry['request']['method'],
                 'response': json_response if json_response else response_content
             })
+        except Exception as e:
+            main_logger.error(f"Error processing XHR entry: {str(e)}")
     
-    main_logger.info(f"Processed XHR entries: {len(xhr_data)}")
-    if xhr_data:
-        main_logger.info("Raw XHR Data:")
-        for data in xhr_data:
-            main_logger.info(f"URL: {data['url']}")
-            main_logger.info(f"Method: {data['method']}")
-            main_logger.info(f"Response: {json.dumps(data['response'], indent=2)[:1000]}...")  # Limit response logging
-            main_logger.info("---")
-    else:
-        main_logger.warning("No XHR data captured")
-
-    return xhr_data
+    main_logger.info(f"Processed {len(processed_xhr_data)} XHR entries")
+    return processed_xhr_data
 
 def parse_profile_html(html):
     soup = BeautifulSoup(html, 'html.parser')
@@ -646,19 +696,16 @@ class ScrapeRequest(BaseModel):
 async def scrape_tiktok(request: ScrapeRequest):
     main_logger.info(f"Received scrape request for username: {request.username}")
     
-    # Try Selenium first
-    main_logger.info(f"Attempting to scrape with Selenium for username: {request.username}")
-    selenium_data = scrape_profile_selenium(request.username)
-    if selenium_data:
-        main_logger.info(f"Successfully scraped data using Selenium for username: {request.username}")
-        return selenium_data
-    
-    # Fallback to Playwright if Selenium fails
-    main_logger.warning(f"Selenium scraping failed for username: {request.username}. Falling back to Playwright.")
-    playwright_data = await scrape_profile_playwright(request.username)
-    
-    main_logger.info(f"Scraping completed for username: {request.username}")
-    return playwright_data
+    try:
+        result = scrape_tiktok_profile(request.username)
+        if result:
+            main_logger.info(f"Successfully scraped data for username: {request.username}")
+            return result
+        else:
+            raise HTTPException(status_code=500, detail="Failed to scrape TikTok profile")
+    except Exception as e:
+        main_logger.error(f"Error during scraping: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error during scraping: {str(e)}")
 
 @app.get("/")
 async def root():
