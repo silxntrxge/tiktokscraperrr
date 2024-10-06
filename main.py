@@ -28,7 +28,7 @@ import psutil
 
 def setup_logger(name: str, log_file: str, level=logging.DEBUG, max_size=1048576, backup_count=5):
     """Function to setup loggers that output to both file and stdout"""
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
     # Rotating File Handler
     file_handler = RotatingFileHandler(log_file, maxBytes=max_size, backupCount=backup_count)
@@ -45,6 +45,21 @@ def setup_logger(name: str, log_file: str, level=logging.DEBUG, max_size=1048576
     logger.addHandler(stream_handler)
     
     return logger
+
+# Initialize loggers
+log_dir = "logs"
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+main_logger = setup_logger('main_logger', os.path.join(log_dir, 'main.log'))
+scraper_logger = setup_logger('scraper_logger', os.path.join(log_dir, 'scraper.log'))
+
+# Set logging levels
+main_logger.setLevel(logging.DEBUG)
+scraper_logger.setLevel(logging.DEBUG)
+
+# Add this line to make scraper_logger available globally
+globals()['scraper_logger'] = scraper_logger
 
 # Add this function to check for write permissions
 def check_log_permissions(log_dir):
@@ -74,24 +89,6 @@ def test_logging():
     scraper_logger.critical("This is a critical message")
 
 app = FastAPI()
-
-# Initialize the logger
-main_logger = logging.getLogger("main")
-main_logger.setLevel(logging.INFO)
-
-# Create a console handler and set the level to info
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-
-# Create a formatter and set it for the handler
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-
-# Add the handler to the logger
-main_logger.addHandler(ch)
-
-class ScrapeRequest(BaseModel):
-    username: str
 
 js_scroll_function = """
 function sleep(ms) {
@@ -489,8 +486,8 @@ def scrape_profile_selenium(username):
             main_logger.info(f"Scraping completed for {username}")
             return profile_data
         except Exception as e:
-            scraper_logger.error(f"Error scraping profile with Selenium: {e}")
-            scraper_logger.exception("Full traceback:")
+            main_logger.error(f"Error scraping profile with Selenium: {e}")
+            main_logger.exception("Full traceback:")
             return None
         finally:
             main_logger.info("Closing Selenium WebDriver")
@@ -522,14 +519,14 @@ def parse_profile_html(html):
     if username_tag:
         profile_data['username'] = username_tag.text.strip()
     else:
-        scraper_logger.error("Username not found in the profile HTML.")
+        main_logger.error("Username not found in the profile HTML.")
     
     # Extract follower count
     follower_count = soup.find('strong', {'data-e2e': 'followers-count'})
     if follower_count:
         profile_data['follower_count'] = follower_count.text.strip()
     else:
-        scraper_logger.error("Follower count not found in the profile HTML.")
+        main_logger.error("Follower count not found in the profile HTML.")
     
     # Extract video list
     video_items = soup.find_all('div', {'data-e2e': 'user-post-item'})
@@ -558,6 +555,9 @@ def perform_setup_verification():
     main_logger.info("Setup verification completed successfully")
     return True
 
+class ScrapeRequest(BaseModel):
+    username: str
+
 @app.post("/scrape")
 async def scrape_tiktok(request: ScrapeRequest):
     main_logger.info(f"Received scrape request for username: {request.username}")
@@ -583,14 +583,6 @@ async def root():
 if __name__ == "__main__":
     log_dir = "logs"
     if check_log_permissions(log_dir):
-        main_logger = setup_logger('main_logger', os.path.join(log_dir, 'main.log'))
-        scraper_logger = setup_logger('scraper_logger', os.path.join(log_dir, 'scraper.log'))
-        
-        main_logger.setLevel(logging.DEBUG)
-        scraper_logger.setLevel(logging.DEBUG)
-        
-        test_logging()
-        
         if perform_setup_verification():
             main_logger.info("Starting TikTok Scraper API")
             import uvicorn
