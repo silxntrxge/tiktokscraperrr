@@ -494,9 +494,17 @@ def initialize_driver(proxy):
 def setup_browsermob_proxy():
     try:
         proxy_path = os.environ.get('BROWSERMOB_PROXY_PATH', '/opt/browsermob-proxy/bin/browsermob-proxy')
-        server = Server(proxy_path)
+        # Get the port from the environment variable, or use a default
+        port = int(os.environ.get('PORT', 10000))
+        main_logger.info(f"Attempting to start Browsermob-Proxy on port {port}")
+        
+        server = Server(proxy_path, options={'port': port})
         server.start()
+        main_logger.info(f"Browsermob-Proxy server started on port {port}")
+        
         proxy = server.create_proxy()
+        main_logger.info(f"Proxy created on port {proxy.port}")
+        
         return server, proxy
     except Exception as e:
         main_logger.error(f"Failed to set up Browsermob-Proxy: {e}")
@@ -568,17 +576,20 @@ def setup_selenium_with_proxy(proxy):
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 def scrape_tiktok_profile(username):
-    server, proxy = setup_browsermob_proxy()
+    server, proxy = None, None
     driver = None
 
     try:
+        server, proxy = setup_browsermob_proxy()
+        if not proxy:
+            main_logger.warning("Browsermob-Proxy setup failed, falling back to Selenium without proxy")
+        
         url = f"https://www.tiktok.com/@{username}"
         
         if proxy:
             main_logger.info(f"Attempting to gather XHR with Browsermob for {username}")
             xhr_data, success = gather_xhr_with_browsermob(proxy, url)
         else:
-            main_logger.warning("Browsermob-Proxy setup failed, falling back to Selenium without proxy")
             success = False
 
         if not success:
