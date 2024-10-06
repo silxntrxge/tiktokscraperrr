@@ -348,7 +348,8 @@ def setup_proxy():
     # Check if Java is installed
     try:
         java_version = subprocess.check_output(["java", "-version"], stderr=subprocess.STDOUT).decode()
-        main_logger.info(f"Java version: {java_version.split()[2].strip('"')}")
+        version_string = java_version.split()[2].strip('"')
+        main_logger.info(f"Java version: {version_string}")
     except subprocess.CalledProcessError:
         main_logger.error("Java is not installed or not in PATH. Browsermob-Proxy requires Java to run.")
         return None, None
