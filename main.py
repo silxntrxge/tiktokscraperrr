@@ -21,13 +21,12 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.proxy import Proxy, ProxyType
 from bs4 import BeautifulSoup
 import time
-from browsermobproxy import Server
+from browsermobproxy import Server  # Changed from browsermob_proxy to browsermobproxy
 import socket
 import subprocess
 import shutil
 import random
 import psutil
-from browsermob_proxy import Server
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
