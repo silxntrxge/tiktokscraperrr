@@ -43,3 +43,93 @@
 2024-10-05 16:04:24,317 WARNING This is a warning message
 2024-10-05 16:04:24,317 ERROR This is an error message
 2024-10-05 16:04:24,317 CRITICAL This is a critical message
+2024-10-05 16:44:57,210 DEBUG This is a debug message
+2024-10-05 16:44:57,210 INFO This is an info message
+2024-10-05 16:44:57,210 WARNING This is a warning message
+2024-10-05 16:44:57,210 ERROR This is an error message
+2024-10-05 16:44:57,210 CRITICAL This is a critical message
+2024-10-06 10:53:40,001 DEBUG This is a debug message
+2024-10-06 10:53:40,001 INFO This is an info message
+2024-10-06 10:53:40,001 WARNING This is a warning message
+2024-10-06 10:53:40,001 ERROR This is an error message
+2024-10-06 10:53:40,002 CRITICAL This is a critical message
+2024-10-06 10:54:48,344 DEBUG This is a debug message
+2024-10-06 10:54:48,344 INFO This is an info message
+2024-10-06 10:54:48,344 WARNING This is a warning message
+2024-10-06 10:54:48,344 ERROR This is an error message
+2024-10-06 10:54:48,344 CRITICAL This is a critical message
+2024-10-06 10:54:58,144 DEBUG Browser console: Reflect is polyfilled, using `@abraham/reflection`.
+2024-10-06 10:54:58,309 DEBUG Browser console: Failed to parse video contentType: video/mp4; codecs=hev1.1.6.L120.90
+2024-10-06 10:54:58,422 DEBUG Browser console: loadable: `loadableReady()` requires state, please use `getScriptTags` or `getScriptElements` server-side
+2024-10-06 10:54:58,519 DEBUG Browser console: [Starling ICU Warning] The interpolation parameter "{s_keywordLink}" is missing in the translation text "Your engagement on TikTok reflects what you see. The more you interact, the more personalized your experience will be. You can always adjust recommendations with {s_keywordLink}." for the key "filterKeywordsWeb_fypEntry_modal_desc1"
+Suggestions: check whether the value is null or undefined. Try using empty string '' as fallback! e.g I18n.t('key', { apple: count || '' })
+2024-10-06 10:54:58,519 DEBUG Browser console: [Starling ICU Warning] The interpolation parameter "{s_learnLink}" is missing in the translation text "You can also turn off personalized feeds at any time. This will change some parts of your experience, including changing For You to Popular, but it won’t affect ads personalization. {s_learnLink}" for the key "filterKeywordsWeb_fypEntry_modal_desc2"
+Suggestions: check whether the value is null or undefined. Try using empty string '' as fallback! e.g I18n.t('key', { apple: count || '' })
+2024-10-06 10:54:58,591 DEBUG Browser console: [TikTok desktop app SDK Monitor]:   turn on listening to DOWNLOAD_FILE_FINISHED failed, env is not in client.
+2024-10-06 10:54:58,750 DEBUG Browser console: [Starling ICU Warning] The interpolation parameter "{s_keywordLink}" is missing in the translation text "Your engagement on TikTok reflects what you see. The more you interact, the more personalized your experience will be. You can always adjust recommendations with {s_keywordLink}." for the key "filterKeywordsWeb_fypEntry_modal_desc1"
+Suggestions: check whether the value is null or undefined. Try using empty string '' as fallback! e.g I18n.t('key', { apple: count || '' })
+2024-10-06 10:54:58,750 DEBUG Browser console: [Starling ICU Warning] The interpolation parameter "{s_learnLink}" is missing in the translation text "You can also turn off personalized feeds at any time. This will change some parts of your experience, including changing For You to Popular, but it won’t affect ads personalization. {s_learnLink}" for the key "filterKeywordsWeb_fypEntry_modal_desc2"
+Suggestions: check whether the value is null or undefined. Try using empty string '' as fallback! e.g I18n.t('key', { apple: count || '' })
+2024-10-06 10:54:58,751 DEBUG Browser console: [i18n] missing key [en] Webapp Close_button Close_button
+2024-10-06 10:54:58,779 DEBUG Browser console: .
+2024-10-06 10:54:59,009 DEBUG Browser console: Access to fetch at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?bid=tiktok_pns_web_runtime' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+2024-10-06 10:54:59,009 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:54:59,363 ERROR JSON decoding failed: Expecting value: line 1 column 1 (char 0)
+2024-10-06 10:54:59,363 DEBUG Response content: ...
+2024-10-06 10:54:59,363 ERROR Failed to parse JSON from XHR: https://www.tiktok.com/api/post/item_list/?WebIdLastTime=1728204896&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20HeadlessChrome%2F129.0.6668.29%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&count=35&coverFormat=2&cursor=0&data_collection_enabled=false&device_id=7422583418078725637&device_platform=web_pc&focus_state=true&from_page=user&history_len=2&is_fullscreen=false&is_page_visible=true&language=en&odinId=7422583155888063493&os=mac&priority_region=&referer=&region=AL&screen_height=720&screen_width=1280&secUid=MS4wLjABAAAAv7iSuuXDJGDvJkmH_vz1qkDZYo1apxgzaxdBSeIuPiM&tz_name=Europe%2FTirane&user_is_login=false&webcast_language=en&msToken=&X-Bogus=DFSzswROhsXANCcGtB56p5Im4Liv&_signature=_02B4Z6wo00001E19-RgAAIDBrbYyyL07RpBNfb2AAHRk47
+2024-10-06 10:54:59,363 DEBUG Raw response body: 
+2024-10-06 10:55:02,371 DEBUG Browser console: Access to XMLHttpRequest at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?biz_id=tiktok_webapp' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+2024-10-06 10:55:02,371 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:55:02,509 DEBUG Browser console: Access to fetch at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?bid=tiktok_pns_web_runtime' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+2024-10-06 10:55:02,509 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:55:03,399 ERROR Error during scrolling for username tiktok: Page.evaluate: SyntaxError: Unexpected reserved word
+    at eval (<anonymous>)
+    at UtilityScript.evaluate (<anonymous>:234:30)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+2024-10-06 10:55:03,400 ERROR Full traceback:
+Traceback (most recent call last):
+  File "/Users/rage/Desktop/tiktokscraper/main.py", line 306, in scrape_profile_playwright
+    await asyncio.wait_for(page.evaluate(js_scroll_function), timeout=120.0)
+  File "/opt/homebrew/Cellar/python@3.12/3.12.6/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/tasks.py", line 520, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/Users/rage/Desktop/tiktokscraper/.venv/lib/python3.12/site-packages/playwright/async_api/_generated.py", line 8332, in evaluate
+    await self._impl_obj.evaluate(
+  File "/Users/rage/Desktop/tiktokscraper/.venv/lib/python3.12/site-packages/playwright/_impl/_page.py", line 440, in evaluate
+    return await self._main_frame.evaluate(expression, arg)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rage/Desktop/tiktokscraper/.venv/lib/python3.12/site-packages/playwright/_impl/_frame.py", line 278, in evaluate
+    await self._channel.send(
+  File "/Users/rage/Desktop/tiktokscraper/.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 59, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/rage/Desktop/tiktokscraper/.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 514, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.Error: Page.evaluate: SyntaxError: Unexpected reserved word
+    at eval (<anonymous>)
+    at UtilityScript.evaluate (<anonymous>:234:30)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+2024-10-06 10:55:03,877 DEBUG Browser console: Access to XMLHttpRequest at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?biz_id=verify_center_va' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+2024-10-06 10:55:03,878 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:55:03,999 DEBUG Browser console: Access to XMLHttpRequest at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?biz_id=verify_center_va' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+2024-10-06 10:55:03,999 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:55:04,000 DEBUG Browser console: Access to XMLHttpRequest at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?biz_id=verify_center_va' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+2024-10-06 10:55:04,000 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:55:04,001 DEBUG Browser console: Access to XMLHttpRequest at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?biz_id=verify_center_va' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+2024-10-06 10:55:04,002 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:55:04,019 DEBUG Browser console: Access to XMLHttpRequest at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?biz_id=verify_center_va' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+2024-10-06 10:55:04,019 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:55:04,019 DEBUG Browser console: Access to XMLHttpRequest at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?biz_id=verify_center_va' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+2024-10-06 10:55:04,020 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:55:04,108 DEBUG Browser console: Access to XMLHttpRequest at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?biz_id=verify_center_va' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+2024-10-06 10:55:04,108 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:55:04,849 DEBUG Browser console: Access to XMLHttpRequest at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?biz_id=tiktok_webapp' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+2024-10-06 10:55:04,849 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:55:04,849 DEBUG Browser console: Access to XMLHttpRequest at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?biz_id=webmssdk' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+2024-10-06 10:55:04,850 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:55:04,866 DEBUG Browser console: Access to XMLHttpRequest at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?biz_id=verify_center_va' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+2024-10-06 10:55:04,867 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:55:06,226 DEBUG Browser console: Access to fetch at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?bid=tiktok_pns_web_runtime' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+2024-10-06 10:55:06,226 DEBUG Browser console: Failed to load resource: net::ERR_FAILED
+2024-10-06 10:55:10,703 DEBUG Browser console: Access to fetch at 'https://mon.tiktokv.com/monitor_browser/collect/batch/?bid=tiktok_pns_web_runtime' from origin 'https://www.tiktok.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+2024-10-06 10:55:10,704 DEBUG Browser console: Failed to load resource: net::ERR_FAILED

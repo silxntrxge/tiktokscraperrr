@@ -70,3 +70,48 @@
 2024-10-05 16:04:24,317 INFO Starting TikTok Scraper API
 2024-10-05 16:04:29,972 INFO Received scrape request for username: tiktok
 2024-10-05 16:04:29,973 INFO Attempting to scrape with Selenium for username: tiktok
+2024-10-05 16:44:57,209 DEBUG This is a debug message
+2024-10-05 16:44:57,210 INFO This is an info message
+2024-10-05 16:44:57,210 WARNING This is a warning message
+2024-10-05 16:44:57,210 ERROR This is an error message
+2024-10-05 16:44:57,210 CRITICAL This is a critical message
+2024-10-05 16:44:57,210 INFO Starting TikTok Scraper API
+2024-10-06 10:53:40,001 DEBUG This is a debug message
+2024-10-06 10:53:40,001 INFO This is an info message
+2024-10-06 10:53:40,001 WARNING This is a warning message
+2024-10-06 10:53:40,001 ERROR This is an error message
+2024-10-06 10:53:40,001 CRITICAL This is a critical message
+2024-10-06 10:53:40,002 INFO Starting TikTok Scraper API
+2024-10-06 10:53:45,661 INFO Received scrape request for username: tiktok
+2024-10-06 10:53:45,662 INFO Attempting to scrape with Selenium for username: tiktok
+2024-10-06 10:53:45,662 ERROR Browsermob-Proxy executable not found at /opt/browsermob-proxy/bin/browsermob-proxy
+2024-10-06 10:53:45,662 ERROR browsermob-proxy not found in PATH
+2024-10-06 10:53:45,662 ERROR Failed to set up proxy. Aborting Selenium scraping.
+2024-10-06 10:53:45,662 WARNING Selenium scraping failed for username: tiktok. Falling back to Playwright.
+2024-10-06 10:53:45,662 INFO Starting scrape_profile_playwright for username: tiktok
+2024-10-06 10:54:48,343 DEBUG This is a debug message
+2024-10-06 10:54:48,343 INFO This is an info message
+2024-10-06 10:54:48,343 WARNING This is a warning message
+2024-10-06 10:54:48,344 ERROR This is an error message
+2024-10-06 10:54:48,344 CRITICAL This is a critical message
+2024-10-06 10:54:48,344 INFO Starting TikTok Scraper API
+2024-10-06 10:54:51,381 INFO Received scrape request for username: tiktok
+2024-10-06 10:54:51,381 INFO Attempting to scrape with Selenium for username: tiktok
+2024-10-06 10:54:51,381 ERROR Browsermob-Proxy executable not found at /opt/browsermob-proxy/bin/browsermob-proxy
+2024-10-06 10:54:51,381 ERROR browsermob-proxy not found in PATH
+2024-10-06 10:54:51,381 ERROR Failed to set up proxy. Aborting Selenium scraping.
+2024-10-06 10:54:51,381 WARNING Selenium scraping failed for username: tiktok. Falling back to Playwright.
+2024-10-06 10:54:51,381 INFO Starting scrape_profile_playwright for username: tiktok
+2024-10-06 10:54:56,506 INFO Starting XHR interception for username: tiktok
+2024-10-06 10:54:56,509 INFO Attempting to navigate to: https://www.tiktok.com/@tiktok
+2024-10-06 10:54:58,983 DEBUG Intercepting XHR request: https://www.tiktok.com/api/post/item_list/?WebIdLastTime=1728204896&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=MacIntel&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20HeadlessChrome%2F129.0.6668.29%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&count=35&coverFormat=2&cursor=0&data_collection_enabled=false&device_id=7422583418078725637&device_platform=web_pc&focus_state=true&from_page=user&history_len=2&is_fullscreen=false&is_page_visible=true&language=en&odinId=7422583155888063493&os=mac&priority_region=&referer=&region=AL&screen_height=720&screen_width=1280&secUid=MS4wLjABAAAAv7iSuuXDJGDvJkmH_vz1qkDZYo1apxgzaxdBSeIuPiM&tz_name=Europe%2FTirane&user_is_login=false&webcast_language=en&msToken=&X-Bogus=DFSzswROhsXANCcGtB56p5Im4Liv&_signature=_02B4Z6wo00001E19-RgAAIDBrbYyyL07RpBNfb2AAHRk47
+2024-10-06 10:54:58,984 DEBUG Request headers: {'accept': '*/*', 'cookie': 'tt_csrf_token=yuBGgPWz-qhmnXRAf00J2VcnvihNcnA56g3I; tt_chain_token=kaftsC5SwqEb2aDEZP80Vg==; msToken=WFIhSgz8YEl8s8HjUjn67L_TXFpazy9whU6gBIEF3QIZqWmIMrmv23gE3tojwAtmfVNAhv7Wu0mhbtM-Uerbc6w1CvThi81GwssaW5KCkktN8aHyCOMfM_k_kMo1CA==; tiktok_webapp_theme_source=system; tiktok_webapp_theme=light; delay_guest_mode_vid=5; ttwid=1%7CTXl82O96m801j0-fIjxYmmuRKgGJ0y1_fwD24-UEHTM%7C1728204898%7C7e3389367f35e4fde4400d1340d1b6fcf1dbd00c3126a3588febd703030c4958', 'referer': 'https://www.tiktok.com/@tiktok', 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/129.0.6668.29 Safari/537.36', 'sec-ch-ua': '"HeadlessChrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"', 'sec-ch-ua-mobile': '?0', 'sec-ch-ua-platform': '"macOS"'}
+2024-10-06 10:54:58,984 DEBUG Request method: GET
+2024-10-06 10:54:59,363 DEBUG Received XHR response with status: 200
+2024-10-06 10:54:59,363 DEBUG Response headers: {'content-type': 'application/json', 'content-length': '0', 'x-janus-mini-api-forward': 'Janus-Mini(fast)', 'tt_stable': '1', 'tt_orcas_res': '1', 'x-tt-logid': '20241006085458664944B062EA2D705778', 'x-ms-token': '2Jf1q2GfgA_19w3hqlV53dqL13fjDh6FFqPli7fCY9EQTEqvSA5UWQLxSVeZ3OVOo0lr6cldHVbqStpaukWlcERkbjU-RNJ8QtZ-p3HfkJy_1dLmEZYNOT3Cj4syCA==', 'strict-transport-security': 'max-age=63072000; includeSubDomains; preload', 'x-tt-trace-host': '01fda72581f544d312cc72bded3cdefae04a1b964880a755e2c4ac5f1bbfc523521056c5fff0c4c65c32c4e2787afb6ce0f84e845e6a76046d7d63292060bcad5173ab2949a643781e1be73b178b912418', 'server': 'TLB', 'x-origin-response-time': '19,23.32.17.11', 'x-akamai-request-id': '1a5d3d1c.1ae954d5', 'expires': 'Sun, 06 Oct 2024 08:54:59 GMT', 'cache-control': 'max-age=0, no-cache, no-store', 'pragma': 'no-cache', 'date': 'Sun, 06 Oct 2024 08:54:59 GMT', 'x-cache': 'TCP_MISS from a23-206-251-44.deploy.akamaitechnologies.com (AkamaiGHost/11.6.4-3dc23d207184ce034768276f9716916d) (-)', 'connection': 'keep-alive', 'set-cookie': 'msToken=2Jf1q2GfgA_19w3hqlV53dqL13fjDh6FFqPli7fCY9EQTEqvSA5UWQLxSVeZ3OVOo0lr6cldHVbqStpaukWlcERkbjU-RNJ8QtZ-p3HfkJy_1dLmEZYNOT3Cj4syCA==; expires=Wed, 16 Oct 2024 08:54:59 GMT; domain=tiktok.com; path=/; secure; SameSite=None', 'x-cache-remote': 'TCP_MISS from a23-32-17-11.deploy.akamaitechnologies.com (AkamaiGHost/11.6.4-3dc23d207184ce034768276f9716916d) (-)', 'x-tt-trace-tag': 'id=16;cdn-cache=miss;type=dyn', 'server-timing': 'cdn-cache; desc=MISS, edge; dur=88, origin; dur=19, inner; dur=15', 'x-parent-response-time': '107,23.206.251.44'}
+2024-10-06 10:54:59,363 DEBUG Response body (first 1000 chars): 
+2024-10-06 10:55:03,354 INFO Successfully loaded page: https://www.tiktok.com/@tiktok
+2024-10-06 10:55:03,356 INFO Starting scroll function
+2024-10-06 10:55:03,400 INFO Waiting for additional XHR requests
+2024-10-06 10:55:13,458 INFO Captured 1 XHR requests for username: tiktok
+2024-10-06 10:55:13,458 INFO Scraping completed for username: tiktok
