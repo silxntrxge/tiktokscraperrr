@@ -43,6 +43,9 @@ PROXY_HOST = os.environ.get('PROXY_HOST', 'localhost')
 PROXY_PORT = int(os.environ.get('PROXY_PORT', '8081'))
 WEBDRIVER_URL = os.environ.get('WEBDRIVER_URL', 'http://localhost:4444/wd/hub')
 
+class ScrapeRequest(BaseModel):
+    username: str
+
 def setup_logger(name: str, log_file: str, level=logging.DEBUG, max_size=1048576, backup_count=5):
     """Function to setup loggers that output to both file and stdout"""
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -856,9 +859,6 @@ def perform_setup_verification():
     monitor_resource_usage()
     main_logger.info("Setup verification completed successfully")
     return True
-
-class ScrapeRequest(BaseModel):
-    username: str
 
 @app.post("/scrape")
 async def scrape_tiktok(request: ScrapeRequest):
